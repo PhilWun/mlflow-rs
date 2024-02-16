@@ -1,6 +1,7 @@
-use std::fmt::Display;
+mod utils;
 
 use serde::{Deserialize, Serialize};
+use utils::check_for_error_response;
 
 #[derive(Deserialize)]
 pub struct Experiment {
@@ -11,22 +12,6 @@ pub struct Experiment {
     last_update_time: u64,
     creation_time: u64,
 }
-
-#[derive(Deserialize, Debug)]
-struct ErrorResponse {
-    error_code: String,
-    message: String,
-}
-
-impl Display for ErrorResponse {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&format!("error code: {}\n", self.error_code))?;
-        f.write_str(&format!("message: {}", self.message))?;
-        Ok(())
-    }
-}
-
-impl std::error::Error for ErrorResponse {}
 
 #[derive(Serialize)]
 struct CreateExperimentRequest {
@@ -54,6 +39,49 @@ struct GetExperimentResponse {
     experiment: Experiment,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct RunTag {
+    key: String,
+    value: String,
+}
+
+#[derive(Serialize)]
+struct CreateRunRequest {
+    experiment_id: String,
+    run_name: Option<String>,
+    start_time: u64,
+    tags: Vec<RunTag>,
+}
+
+#[derive(Deserialize)]
+struct CreateRunResponse {
+    run: Run,
+}
+
+#[derive(Deserialize)]
+pub struct Run {
+    info: RunInfo,
+    data: RunData,
+}
+
+#[derive(Deserialize)]
+struct RunInfo {
+    run_uuid: String,
+    experiment_id: String,
+    run_name: String,
+    user_id: String,
+    status: String,
+    start_time: u64,
+    artifact_uri: String,
+    lifecycle_stage: String,
+    run_id: String,
+}
+
+#[derive(Deserialize)]
+struct RunData {
+    tags: Vec<RunTag>,
+}
+
 impl Experiment {
     pub fn new(api_root: &str, name: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let client = reqwest::blocking::Client::new();
@@ -64,12 +92,10 @@ impl Experiment {
                 tags: vec![],
             })
             .send()?
+            .error_for_status()?
             .text()?;
 
-        match serde_json::from_str::<ErrorResponse>(&response) {
-            Ok(e) => return Err(Box::new(e)),
-            Err(_) => (),
-        }
+        check_for_error_response(&response)?;
 
         let experiment_id = match serde_json::from_str::<CreateExperimentResponse>(&response) {
             Ok(r) => r.experiment_id,
@@ -87,12 +113,10 @@ impl Experiment {
                 experiment_id: id.to_owned(),
             })
             .send()?
+            .error_for_status()?
             .text()?;
 
-        match serde_json::from_str::<ErrorResponse>(&response) {
-            Ok(e) => return Err(Box::new(e)),
-            Err(_) => (),
-        }
+        check_for_error_response(&response)?;
 
         match serde_json::from_str::<GetExperimentResponse>(&response) {
             Ok(r) => Ok(r.experiment),
@@ -100,7 +124,10 @@ impl Experiment {
         }
     }
 
-    pub fn search_with_name(api_root: &str, name: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn search_with_name(
+        api_root: &str,
+        name: &str,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
         let client = reqwest::blocking::Client::new();
         let response = client
             .get(format!("{api_root}/api/2.0/mlflow/experiments/get-by-name"))
@@ -108,17 +135,41 @@ impl Experiment {
                 experiment_name: name.to_owned(),
             })
             .send()?
+            .error_for_status()?
             .text()?;
 
-        match serde_json::from_str::<ErrorResponse>(&response) {
-            Ok(e) => return Err(Box::new(e)),
-            Err(_) => (),
-        }
+        check_for_error_response(&response)?;
 
         match serde_json::from_str::<GetExperimentResponse>(&response) {
             Ok(r) => Ok(r.experiment),
             Err(e) => return Err(Box::new(e)),
         }
+    }
+
+    pub fn create_run(
+        &self,
+        api_root: &str,
+        run_name: Option<&str>,
+        tags: Vec<RunTag>,
+    ) -> Result<Run, Box<dyn std::error::Error>> {
+        let client = reqwest::blocking::Client::new();
+        let response = client
+            .post(format!("{api_root}/api/2.0/mlflow/runs/create"))
+            .json(&CreateRunRequest {
+                experiment_id: self.experiment_id.clone(),
+                run_name: run_name.map(|x| x.to_owned()),
+                start_time: 0, // TODO
+                tags,
+            })
+            .send()?
+            .error_for_status()?
+            .text()?;
+
+        check_for_error_response(&response)?;
+
+        let run = serde_json::from_str::<CreateRunResponse>(&response)?.run;
+
+        Ok(run)
     }
 
     pub fn get_experiment_id(&self) -> &str {
@@ -144,4 +195,8 @@ impl Experiment {
     pub fn get_creating_time(&self) -> u64 {
         self.creation_time
     }
+}
+
+impl Run {
+    // TODO
 }
