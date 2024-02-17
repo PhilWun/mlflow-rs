@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{error::Error, path::Path};
 
 use experiment_tracking::{experiment::Experiment, run::RunTag};
 
@@ -15,7 +15,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }],
     )?;
     
-    run.log_parameter(api_root, "test", "test_value")?;
+    run.log_artifact(api_root, &Path::new("local_file.jpg"), "test.jpg")?;
 
     Ok(())
 }

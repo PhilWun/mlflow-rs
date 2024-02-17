@@ -1,4 +1,4 @@
-use std::time::SystemTime;
+use std::{path::Path, time::SystemTime};
 
 use serde::{Deserialize, Serialize};
 
@@ -88,6 +88,19 @@ impl Run {
                 value: value.to_owned()
             }
         )?;
+
+        Ok(())
+    }
+
+    pub fn log_artifact(&self, api_root: &str, path_on_disk: &Path, path_destination: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let client = reqwest::blocking::Client::new();
+        let file = std::fs::File::open(path_on_disk)?;
+
+        client.post(format!("{api_root}/ajax-api/2.0/mlflow/upload-artifact"))
+            .body(file)
+            .query(&[("run_uuid", self.info.run_id.as_str()), ("path", path_destination)])
+            .send()?
+            .error_for_status()?;
 
         Ok(())
     }
