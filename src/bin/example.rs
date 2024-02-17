@@ -1,4 +1,4 @@
-use std::{error::Error, thread::sleep, time::Duration};
+use std::error::Error;
 
 use experiment_tracking::{experiment::Experiment, run::RunTag};
 
@@ -15,7 +15,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }],
     )?;
     
-    run.log_metric(api_root, "test", 42.0, Some(1))?;
+    run.log_parameter(api_root, "test", "test_value")?;
 
     Ok(())
 }

@@ -2,7 +2,7 @@ use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{schemas::{LogMetricRequest, LogMetricResponse, UpdateRunRequest, UpdateRunResponse}, utils::checked_post_request};
+use crate::{schemas::{LogMetricRequest, LogMetricResponse, LogParameterRequest, LogParameterResponse, UpdateRunRequest, UpdateRunResponse}, utils::checked_post_request};
 
 #[derive(Deserialize)]
 pub struct Run {
@@ -73,6 +73,19 @@ impl Run {
                     .duration_since(SystemTime::UNIX_EPOCH)?
                     .as_millis(),
                 step
+            }
+        )?;
+
+        Ok(())
+    }
+
+    pub fn log_parameter(&self, api_root: &str, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error>> {
+        checked_post_request::<LogParameterRequest, LogParameterResponse>(
+            &format!("{api_root}/api/2.0/mlflow/runs/log-parameter"),
+            &LogParameterRequest{
+                run_id: self.info.run_id.clone(),
+                key: key.to_owned(),
+                value: value.to_owned()
             }
         )?;
 

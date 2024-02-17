@@ -67,3 +67,14 @@ pub(crate) struct LogMetricRequest {
 
 #[derive(Deserialize)]
 pub(crate) struct LogMetricResponse {}
+
+
+#[derive(Serialize)]
+pub(crate) struct LogParameterRequest {
+    pub(crate) run_id: String,
+    pub(crate) key: String,
+    pub(crate) value: String,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct LogParameterResponse {}
