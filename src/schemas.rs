@@ -55,3 +55,15 @@ pub(crate) struct UpdateRunRequest {
 pub(crate) struct UpdateRunResponse {
     pub(crate) run_info: RunInfo
 }
+
+#[derive(Serialize)]
+pub(crate) struct LogMetricRequest {
+    pub(crate) run_id: String,
+    pub(crate) key: String,
+    pub(crate) value: f32,
+    pub(crate) timestamp: u128,
+    pub(crate) step: Option<u64>
+}
+
+#[derive(Deserialize)]
+pub(crate) struct LogMetricResponse {}

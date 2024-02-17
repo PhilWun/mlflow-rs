@@ -2,7 +2,7 @@ use std::time::SystemTime;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{schemas::{UpdateRunRequest, UpdateRunResponse}, utils::checked_post_request};
+use crate::{schemas::{LogMetricRequest, LogMetricResponse, UpdateRunRequest, UpdateRunResponse}, utils::checked_post_request};
 
 #[derive(Deserialize)]
 pub struct Run {
@@ -35,6 +35,18 @@ pub struct RunTag {
 }
 
 impl Run {
+    pub fn end_run_successfully(&self, api_root: &str) -> Result<(), Box<dyn std::error::Error>> {
+        self.end_run_with_status(api_root, "FINISHED")
+    }
+
+    pub fn end_run_forced(&self, api_root: &str) -> Result<(), Box<dyn std::error::Error>> {
+        self.end_run_with_status(api_root, "KILLED")
+    }
+
+    pub fn end_run_failed(&self, api_root: &str) -> Result<(), Box<dyn std::error::Error>> {
+        self.end_run_with_status(api_root, "FAILED")
+    }
+
     fn end_run_with_status(&self, api_root: &str, status: &str) -> Result<(), Box<dyn std::error::Error>> {
         checked_post_request::<UpdateRunRequest, UpdateRunResponse>(
             &format!("{api_root}/api/2.0/mlflow/runs/update"),
@@ -50,15 +62,20 @@ impl Run {
         Ok(())
     }
 
-    pub fn end_run_successfully(&self, api_root: &str) -> Result<(), Box<dyn std::error::Error>> {
-        self.end_run_with_status(api_root, "FINISHED")
-    }
+    pub fn log_metric(&self, api_root: &str, key: &str, value: f32, step: Option<u64>) -> Result<(), Box<dyn std::error::Error>> {
+        checked_post_request::<LogMetricRequest, LogMetricResponse>(
+            &format!("{api_root}/api/2.0/mlflow/runs/log-metric"),
+            &LogMetricRequest{
+                run_id: self.info.run_id.clone(),
+                key: key.to_owned(),
+                value,
+                timestamp: SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)?
+                    .as_millis(),
+                step
+            }
+        )?;
 
-    pub fn end_run_forced(&self, api_root: &str) -> Result<(), Box<dyn std::error::Error>> {
-        self.end_run_with_status(api_root, "KILLED")
-    }
-
-    pub fn end_run_failed(&self, api_root: &str) -> Result<(), Box<dyn std::error::Error>> {
-        self.end_run_with_status(api_root, "FAILED")
+        Ok(())
     }
 }

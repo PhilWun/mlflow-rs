@@ -80,6 +80,8 @@ impl Experiment {
         Ok(response.run)
     }
 
+    // TODO: search run
+
     pub fn get_experiment_id(&self) -> &str {
         &self.experiment_id
     }

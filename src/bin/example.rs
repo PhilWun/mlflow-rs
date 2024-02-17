@@ -15,9 +15,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }],
     )?;
     
-    sleep(Duration::from_secs(10));
-
-    run.end_run_successfully(api_root)?;
+    run.log_metric(api_root, "test", 42.0, Some(1))?;
 
     Ok(())
 }
