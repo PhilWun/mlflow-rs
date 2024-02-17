@@ -1,3 +1,5 @@
+use std::time::SystemTime;
+
 use serde::Deserialize;
 
 use crate::{
@@ -6,7 +8,7 @@ use crate::{
         CreateExperimentRequest, CreateExperimentResponse, CreateRunRequest, CreateRunResponse,
         GetExperimentByNameRequest, GetExperimentRequest, GetExperimentResponse,
     },
-    utils::check_for_error_response,
+    utils::{checked_get_request, checked_post_request},
 };
 
 #[derive(Deserialize)]
@@ -21,66 +23,40 @@ pub struct Experiment {
 
 impl Experiment {
     pub fn new(api_root: &str, name: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let client = reqwest::blocking::Client::new();
-        let response = client
-            .post(format!("{api_root}/api/2.0/mlflow/experiments/create"))
-            .json(&CreateExperimentRequest {
+        let response: CreateExperimentResponse = checked_post_request(
+            &format!("{api_root}/api/2.0/mlflow/experiments/create"),
+            &CreateExperimentRequest {
                 name: name.to_owned(),
                 tags: vec![],
-            })
-            .send()?
-            .error_for_status()?
-            .text()?;
+            },
+        )?;
 
-        check_for_error_response(&response)?;
-
-        let experiment_id = match serde_json::from_str::<CreateExperimentResponse>(&response) {
-            Ok(r) => r.experiment_id,
-            Err(e) => return Err(Box::new(e)),
-        };
-
-        Self::search_with_id(api_root, &experiment_id)
+        Self::search_with_id(api_root, &response.experiment_id)
     }
 
     pub fn search_with_id(api_root: &str, id: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let client = reqwest::blocking::Client::new();
-        let response = client
-            .get(format!("{api_root}/api/2.0/mlflow/experiments/get"))
-            .json(&GetExperimentRequest {
+        let response: GetExperimentResponse = checked_get_request(
+            &format!("{api_root}/api/2.0/mlflow/experiments/get"),
+            &GetExperimentRequest {
                 experiment_id: id.to_owned(),
-            })
-            .send()?
-            .error_for_status()?
-            .text()?;
+            },
+        )?;
 
-        check_for_error_response(&response)?;
-
-        match serde_json::from_str::<GetExperimentResponse>(&response) {
-            Ok(r) => Ok(r.experiment),
-            Err(e) => return Err(Box::new(e)),
-        }
+        Ok(response.experiment)
     }
 
     pub fn search_with_name(
         api_root: &str,
         name: &str,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let client = reqwest::blocking::Client::new();
-        let response = client
-            .get(format!("{api_root}/api/2.0/mlflow/experiments/get-by-name"))
-            .json(&GetExperimentByNameRequest {
+        let response: GetExperimentResponse = checked_get_request(
+            &format!("{api_root}/api/2.0/mlflow/experiments/get-by-name"),
+            &GetExperimentByNameRequest {
                 experiment_name: name.to_owned(),
-            })
-            .send()?
-            .error_for_status()?
-            .text()?;
+            },
+        )?;
 
-        check_for_error_response(&response)?;
-
-        match serde_json::from_str::<GetExperimentResponse>(&response) {
-            Ok(r) => Ok(r.experiment),
-            Err(e) => return Err(Box::new(e)),
-        }
+        Ok(response.experiment)
     }
 
     pub fn create_run(
@@ -89,24 +65,19 @@ impl Experiment {
         run_name: Option<&str>,
         tags: Vec<RunTag>,
     ) -> Result<Run, Box<dyn std::error::Error>> {
-        let client = reqwest::blocking::Client::new();
-        let response = client
-            .post(format!("{api_root}/api/2.0/mlflow/runs/create"))
-            .json(&CreateRunRequest {
+        let response: CreateRunResponse = checked_post_request(
+            &format!("{api_root}/api/2.0/mlflow/runs/create"),
+            &CreateRunRequest {
                 experiment_id: self.experiment_id.clone(),
                 run_name: run_name.map(|x| x.to_owned()),
-                start_time: 0, // TODO
+                start_time: SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)?
+                    .as_millis(),
                 tags,
-            })
-            .send()?
-            .error_for_status()?
-            .text()?;
+            },
+        )?;
 
-        check_for_error_response(&response)?;
-
-        let run = serde_json::from_str::<CreateRunResponse>(&response)?.run;
-
-        Ok(run)
+        Ok(response.run)
     }
 
     pub fn get_experiment_id(&self) -> &str {

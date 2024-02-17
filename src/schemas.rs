@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     experiment::Experiment,
-    run::{Run, RunTag},
+    run::{Run, RunInfo, RunTag},
 };
 
 #[derive(Serialize)]
@@ -35,11 +35,23 @@ pub(crate) struct GetExperimentResponse {
 pub(crate) struct CreateRunRequest {
     pub(crate) experiment_id: String,
     pub(crate) run_name: Option<String>,
-    pub(crate) start_time: u64,
+    pub(crate) start_time: u128,
     pub(crate) tags: Vec<RunTag>,
 }
 
 #[derive(Deserialize)]
 pub(crate) struct CreateRunResponse {
     pub(crate) run: Run,
+}
+
+#[derive(Serialize)]
+pub(crate) struct UpdateRunRequest {
+    pub(crate) run_id: String,
+    pub(crate) status: String,
+    pub(crate) end_time: u128
+}
+
+#[derive(Deserialize)]
+pub(crate) struct UpdateRunResponse {
+    pub(crate) run_info: RunInfo
 }
