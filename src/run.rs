@@ -34,30 +34,28 @@ pub struct RunTag {
     pub value: String,
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all="UPPERCASE")]
+pub enum Status {
+    Finished,
+    Killed,
+    Failed
+}
+
 impl Run {
-    pub fn end_run_successfully(&self, api_root: &str) -> Result<(), Box<dyn std::error::Error>> {
-        self.end_run_with_status(api_root, "FINISHED")
-    }
-
-    pub fn end_run_forced(&self, api_root: &str) -> Result<(), Box<dyn std::error::Error>> {
-        self.end_run_with_status(api_root, "KILLED")
-    }
-
-    pub fn end_run_failed(&self, api_root: &str) -> Result<(), Box<dyn std::error::Error>> {
-        self.end_run_with_status(api_root, "FAILED")
-    }
-
-    fn end_run_with_status(&self, api_root: &str, status: &str) -> Result<(), Box<dyn std::error::Error>> {
-        checked_post_request::<UpdateRunRequest, UpdateRunResponse>(
+    pub fn end_run(&mut self, api_root: &str, status: Status) -> Result<(), Box<dyn std::error::Error>> {
+        let new_run_info = checked_post_request::<UpdateRunRequest, UpdateRunResponse>(
             &format!("{api_root}/api/2.0/mlflow/runs/update"),
             &UpdateRunRequest {
                 run_id: self.info.run_id.clone(),
-                status: status.to_owned(),
+                status,
                 end_time: SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)?
                     .as_millis()
             },
-        )?;
+        )?.run_info;
+
+        self.info = new_run_info;
 
         Ok(())
     }
@@ -103,5 +101,41 @@ impl Run {
             .error_for_status()?;
 
         Ok(())
+    }
+
+    pub fn get_run_uuid(&self) -> &str {
+        &self.info.run_uuid
+    }
+
+    pub fn get_experiment_id(&self) -> &str {
+        &self.info.experiment_id
+    }
+
+    pub fn get_run_name(&self) -> &str {
+        &self.info.run_name
+    }
+
+    pub fn get_user_id(&self) -> &str {
+        &self.info.user_id
+    }
+
+    pub fn get_status(&self) -> &str {
+        &self.info.status
+    }
+
+    pub fn get_start_time(&self) -> u64 {
+        self.info.start_time
+    }
+
+    pub fn get_artifact_uri(&self) -> &str {
+        &self.info.artifact_uri
+    }
+
+    pub fn get_lifecycle_stage(&self) -> &str {
+        &self.info.lifecycle_stage
+    }
+
+    pub fn get_tags(&self) -> &Vec<RunTag> {
+        &self.data.tags
     }
 }

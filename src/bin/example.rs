@@ -1,12 +1,13 @@
-use std::{error::Error, path::Path};
+use std::error::Error;
 
-use experiment_tracking::{experiment::Experiment, run::RunTag};
+use experiment_tracking::{experiment::Experiment, run::{RunTag, Status}};
 
-fn main() -> Result<(), Box<dyn Error>> {
+#[allow(dead_code)]
+fn test() -> Result<(), Box<dyn Error>> {
     let api_root = "http://localhost:5000";
     // let _experiment = Experiment::new(api_root, "new3")?;
     let experiment = Experiment::search_with_name(api_root, "new")?;
-    let run = experiment.create_run(
+    let mut run = experiment.create_run(
         api_root,
         Some("new run"),
         vec![RunTag {
@@ -15,7 +16,14 @@ fn main() -> Result<(), Box<dyn Error>> {
         }],
     )?;
     
-    run.log_artifact(api_root, &Path::new("local_file.jpg"), "test.jpg")?;
+    // run.log_artifact(api_root, &Path::new("local_file.jpg"), "test.jpg")?;
+    run.end_run(api_root, Status::Finished)?;
+
+    Ok(())
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    test()?;
 
     Ok(())
 }

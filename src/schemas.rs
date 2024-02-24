@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     experiment::Experiment,
-    run::{Run, RunInfo, RunTag},
+    run::{Run, RunInfo, RunTag, Status},
 };
 
 #[derive(Serialize)]
@@ -47,7 +47,7 @@ pub(crate) struct CreateRunResponse {
 #[derive(Serialize)]
 pub(crate) struct UpdateRunRequest {
     pub(crate) run_id: String,
-    pub(crate) status: String,
+    pub(crate) status: Status,
     pub(crate) end_time: u128
 }
 
