@@ -3,7 +3,7 @@ use std::{error::Error, fmt::Display, time::SystemTime};
 use serde::Deserialize;
 
 use crate::{
-    git_utils::{create_diff, get_commit_hash, is_repo_clean},
+    git_utils::{create_diff, does_repo_contain_submodules, get_commit_hash, is_repo_clean},
     run::{Run, RunTag},
     schemas::{
         CreateExperimentRequest, CreateExperimentResponse, CreateRunRequest, CreateRunResponse,
@@ -17,11 +17,22 @@ pub struct DirtyRepoError {}
 
 impl Display for DirtyRepoError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "The repository contains uncommited changes.")
+        write!(f, "The repository contains uncommitted changes.")
     }
 }
 
 impl Error for DirtyRepoError {}
+
+#[derive(Debug)]
+pub struct RepoContainsSubmodulesError {}
+
+impl Display for RepoContainsSubmodulesError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "The repository contains one or more submodules which is currently not supported.")
+    }
+}
+
+impl Error for RepoContainsSubmodulesError {}
 
 #[derive(Deserialize)]
 pub struct Experiment {
@@ -105,6 +116,10 @@ impl Experiment {
         run_name: Option<&str>,
         tags: Vec<RunTag>,
     ) -> Result<Run, Box<dyn std::error::Error>> {
+        if does_repo_contain_submodules()? {
+            Err(RepoContainsSubmodulesError {})?
+        }
+
         if !is_repo_clean()? {
             Err(DirtyRepoError {})?
         }
@@ -118,6 +133,10 @@ impl Experiment {
         run_name: Option<&str>,
         tags: Vec<RunTag>,
     ) -> Result<Run, Box<dyn std::error::Error>> {
+        if does_repo_contain_submodules()? {
+            Err(RepoContainsSubmodulesError {})?
+        }
+
         let run = self.create_run_unchecked(api_root, run_name, tags)?;
 
         if !is_repo_clean()? {

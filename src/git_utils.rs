@@ -44,3 +44,15 @@ pub(crate) fn create_diff() -> Result<Vec<u8>, Box<dyn Error>> {
 
     Ok(diff?.stdout)
 }
+
+pub(crate) fn does_repo_contain_submodules() -> Result<bool, Box<dyn Error>> {
+    let output = Command::new("git")
+        .arg("submodule")
+        .arg("status")
+        .arg("--recursive")
+        .output()?;
+
+    let converted = String::from_utf8(output.stdout)?.trim().to_owned();
+
+    Ok(converted != "")
+}
