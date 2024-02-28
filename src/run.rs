@@ -90,12 +90,24 @@ impl Run {
         Ok(())
     }
 
-    pub fn log_artifact(&self, api_root: &str, path_on_disk: &Path, path_destination: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn log_artifact_file(&self, api_root: &str, path_on_disk: &Path, path_destination: &str) -> Result<(), Box<dyn std::error::Error>> {
         let client = reqwest::blocking::Client::new();
         let file = std::fs::File::open(path_on_disk)?;
 
         client.post(format!("{api_root}/ajax-api/2.0/mlflow/upload-artifact"))
             .body(file)
+            .query(&[("run_uuid", self.info.run_id.as_str()), ("path", path_destination)])
+            .send()?
+            .error_for_status()?;
+
+        Ok(())
+    }
+
+    pub fn log_artifact_bytes(&self, api_root: &str, data: Vec<u8>, path_destination: &str) -> Result<(), Box<dyn std::error::Error>> {
+        let client = reqwest::blocking::Client::new();
+
+        client.post(format!("{api_root}/ajax-api/2.0/mlflow/upload-artifact"))
+            .body(data)
             .query(&[("run_uuid", self.info.run_id.as_str()), ("path", path_destination)])
             .send()?
             .error_for_status()?;

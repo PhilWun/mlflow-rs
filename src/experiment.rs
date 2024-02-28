@@ -1,8 +1,9 @@
-use std::time::SystemTime;
+use std::{error::Error, fmt::Display, time::SystemTime};
 
 use serde::Deserialize;
 
 use crate::{
+    git_utils::{create_diff, get_commit_hash, is_repo_clean},
     run::{Run, RunTag},
     schemas::{
         CreateExperimentRequest, CreateExperimentResponse, CreateRunRequest, CreateRunResponse,
@@ -10,6 +11,17 @@ use crate::{
     },
     utils::{checked_get_request, checked_post_request},
 };
+
+#[derive(Debug)]
+pub struct DirtyRepoError {}
+
+impl Display for DirtyRepoError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "The repository contains uncommited changes.")
+    }
+}
+
+impl Error for DirtyRepoError {}
 
 #[derive(Deserialize)]
 pub struct Experiment {
@@ -59,12 +71,17 @@ impl Experiment {
         Ok(response.experiment)
     }
 
-    pub fn create_run(
+    fn create_run_unchecked(
         &self,
         api_root: &str,
         run_name: Option<&str>,
-        tags: Vec<RunTag>,
+        mut tags: Vec<RunTag>,
     ) -> Result<Run, Box<dyn std::error::Error>> {
+        tags.push(RunTag {
+            key: "mlflow.source.git.commit".to_owned(),
+            value: get_commit_hash()?,
+        });
+
         let response: CreateRunResponse = checked_post_request(
             &format!("{api_root}/api/2.0/mlflow/runs/create"),
             &CreateRunRequest {
@@ -77,7 +94,39 @@ impl Experiment {
             },
         )?;
 
-        Ok(response.run)
+        let run = response.run;
+
+        Ok(run)
+    }
+
+    pub fn create_run(
+        &self,
+        api_root: &str,
+        run_name: Option<&str>,
+        tags: Vec<RunTag>,
+    ) -> Result<Run, Box<dyn std::error::Error>> {
+        if !is_repo_clean()? {
+            Err(DirtyRepoError {})?
+        }
+
+        self.create_run_unchecked(api_root, run_name, tags)
+    }
+
+    pub fn create_run_with_git_diff(
+        &self,
+        api_root: &str,
+        run_name: Option<&str>,
+        tags: Vec<RunTag>,
+    ) -> Result<Run, Box<dyn std::error::Error>> {
+        let run = self.create_run_unchecked(api_root, run_name, tags)?;
+
+        if !is_repo_clean()? {
+            let diff = create_diff()?;
+
+            run.log_artifact_bytes(api_root, diff, "uncommitted.patch")?;
+        }
+
+        Ok(run)
     }
 
     // TODO: search run
