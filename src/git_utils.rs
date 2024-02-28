@@ -56,3 +56,29 @@ pub(crate) fn does_repo_contain_submodules() -> Result<bool, Box<dyn Error>> {
 
     Ok(converted != "")
 }
+
+fn get_repo_root() -> Result<String, Box<dyn Error>> {
+    let output = Command::new("git")
+        .arg("rev-parse")
+        .arg("--show-toplevel")
+        .output()?;
+
+    let converted = String::from_utf8(output.stdout)?.trim().to_owned();
+
+    Ok(converted)
+}
+
+pub(crate) fn does_repo_contain_subfolders_with_repos() -> Result<bool, Box<dyn Error>> {
+    let root_path = get_repo_root()?;
+
+    let output = Command::new("find")
+        .arg(root_path)
+        .arg("-name")
+        .arg(".git")
+        .output()?;
+
+    let converted = String::from_utf8(output.stdout)?.trim().to_owned();
+    let git_repo_paths: Vec<&str> = converted.lines().collect();
+
+    Ok(git_repo_paths.len() > 1)
+}

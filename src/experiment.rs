@@ -3,7 +3,7 @@ use std::{error::Error, fmt::Display, time::SystemTime};
 use serde::Deserialize;
 
 use crate::{
-    git_utils::{create_diff, does_repo_contain_submodules, get_commit_hash, is_repo_clean},
+    git_utils::{create_diff, does_repo_contain_subfolders_with_repos, does_repo_contain_submodules, get_commit_hash, is_repo_clean},
     run::{Run, RunTag},
     schemas::{
         CreateExperimentRequest, CreateExperimentResponse, CreateRunRequest, CreateRunResponse,
@@ -33,6 +33,17 @@ impl Display for RepoContainsSubmodulesError {
 }
 
 impl Error for RepoContainsSubmodulesError {}
+
+#[derive(Debug)]
+pub struct RepoContainsSubfolderReposError {}
+
+impl Display for RepoContainsSubfolderReposError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "The repository contains one or more subfolder which themselves container git repos which is currently not supported.")
+    }
+}
+
+impl Error for RepoContainsSubfolderReposError {}
 
 #[derive(Deserialize)]
 pub struct Experiment {
@@ -120,6 +131,10 @@ impl Experiment {
             Err(RepoContainsSubmodulesError {})?
         }
 
+        if does_repo_contain_subfolders_with_repos()? {
+            Err(RepoContainsSubfolderReposError {})?
+        }
+
         if !is_repo_clean()? {
             Err(DirtyRepoError {})?
         }
@@ -135,6 +150,10 @@ impl Experiment {
     ) -> Result<Run, Box<dyn std::error::Error>> {
         if does_repo_contain_submodules()? {
             Err(RepoContainsSubmodulesError {})?
+        }
+
+        if does_repo_contain_subfolders_with_repos()? {
+            Err(RepoContainsSubfolderReposError {})?
         }
 
         let run = self.create_run_unchecked(api_root, run_name, tags)?;
