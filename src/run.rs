@@ -1,8 +1,9 @@
 use std::{path::Path, time::SystemTime};
 
+use log::Log;
 use serde::{Deserialize, Serialize};
 
-use crate::{schemas::{LogMetricRequest, LogMetricResponse, LogParameterRequest, LogParameterResponse, UpdateRunRequest, UpdateRunResponse}, utils::checked_post_request};
+use crate::{logger::ExperimentLogger, schemas::{LogMetricRequest, LogMetricResponse, LogParameterRequest, LogParameterResponse, UpdateRunRequest, UpdateRunResponse}, utils::checked_post_request};
 
 #[derive(Deserialize)]
 pub struct Run {
@@ -113,6 +114,10 @@ impl Run {
             .error_for_status()?;
 
         Ok(())
+    }
+
+    pub fn log_logger<L: Log + 'static>(&self, api_root: &str, logger: &ExperimentLogger<L>) -> Result<(), Box<dyn std::error::Error>> {
+        self.log_artifact_bytes(api_root, logger.to_string().into_bytes(), "log.log")
     }
 
     pub fn get_run_uuid(&self) -> &str {
