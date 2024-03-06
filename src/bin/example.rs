@@ -187,28 +187,52 @@ fn log_logger() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+fn experiment_function() -> Result<(), Box<dyn Error>> {
+    info!("info message");
+    error!("error message");
+
+    u32::from_str_radix("a", 10).unwrap();
+
+    Ok(())
+}
+
 #[allow(dead_code)]
-fn test() -> Result<(), Box<dyn Error>> {
+fn run_experiment() -> Result<(), Box<dyn Error>> {
     let api_root = "http://localhost:5000";
-    // let _experiment = Experiment::new(api_root, "new3")?;
-    let experiment = Experiment::search_with_name(api_root, "new")?;
-    let mut run = experiment.create_run(
+    let experiment = Experiment::search_with_name(api_root, "test")?;
+
+    let mut run = experiment.create_run_with_git_diff(
         api_root,
         Some("new run"),
-        vec![RunTag {
-            key: "test".to_owned(),
-            value: "test".to_owned(),
-        }],
+        vec![],
     )?;
 
-    // run.log_artifact(api_root, &Path::new("local_file.jpg"), "test.jpg")?;
-    run.end_run(api_root, Status::Finished)?;
+    run.run_experiment(api_root, experiment_function)?;
+
+    Ok(())
+}
+
+#[allow(dead_code)]
+fn run_experiment_with_logger() -> Result<(), Box<dyn Error>> {
+    let api_root = "http://localhost:5000";
+    let experiment = Experiment::search_with_name(api_root, "test")?;
+
+    let logger = TestLogger {};
+    log::set_max_level(log::LevelFilter::Info);
+
+    let mut run = experiment.create_run_with_git_diff(
+        api_root,
+        Some("new run"),
+        vec![],
+    )?;
+
+    run.run_experiment_with_logger(api_root, experiment_function, logger)?;
 
     Ok(())
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    end_run()?;
+    run_experiment_with_logger()?;
 
     Ok(())
 }

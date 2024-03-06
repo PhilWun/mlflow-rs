@@ -1,6 +1,6 @@
-use std::{path::Path, time::SystemTime};
+use std::{panic, path::Path, time::SystemTime};
 
-use log::Log;
+use log::{error, Log};
 use serde::{Deserialize, Serialize};
 
 use crate::{logger::ExperimentLogger, schemas::{LogMetricRequest, LogMetricResponse, LogParameterRequest, LogParameterResponse, UpdateRunRequest, UpdateRunResponse}, utils::checked_post_request};
@@ -118,6 +118,56 @@ impl Run {
 
     pub fn log_logger<L: Log + 'static>(&self, api_root: &str, logger: &ExperimentLogger<L>) -> Result<(), Box<dyn std::error::Error>> {
         self.log_artifact_bytes(api_root, logger.to_string().into_bytes(), "log.log")
+    }
+
+    pub fn run_experiment(&mut self, api_root: &str, experiment_function: fn() -> Result<(), Box<dyn std::error::Error>>) -> Result<(), Box<dyn std::error::Error>> {
+        let result = panic::catch_unwind(experiment_function); // catch panics (might not catch all panics, see Rust docs)
+
+        let successful = match result {
+            Ok(inner_result) => match inner_result {
+                Ok(_) => true,
+                Err(_) => false,
+            },
+            Err(_) => false,
+        };
+
+        if successful {
+            self.end_run(api_root, Status::Finished)?;
+        } else {
+            self.end_run(api_root, Status::Failed)?;
+        }
+
+        Ok(())
+    }
+
+    pub fn run_experiment_with_logger<L: Log + 'static>(&mut self, api_root: &str, experiment_function: fn() -> Result<(), Box<dyn std::error::Error>>, logger: L) -> Result<(), Box<dyn std::error::Error>> {
+        let experiment_logger = ExperimentLogger::init(logger)?;
+
+        let result = panic::catch_unwind(experiment_function); // catch panics (might not catch all panics, see Rust docs)
+
+        let successful = match result {
+            Ok(inner_result) => match inner_result {
+                Ok(_) => true,
+                Err(err) => {
+                    error!("{}", err);
+                    false
+                },
+            },
+            Err(_) => {
+                error!("experiment_function panicked");
+                false
+            },
+        };
+
+        self.log_logger(api_root, experiment_logger)?;
+
+        if successful {
+            self.end_run(api_root, Status::Finished)?;
+        } else {
+            self.end_run(api_root, Status::Failed)?;
+        }
+
+        Ok(())
     }
 
     pub fn get_run_uuid(&self) -> &str {
