@@ -7,6 +7,8 @@ use crate::{logger::ExperimentLogger, schemas::{LogMetricRequest, LogMetricRespo
 
 #[derive(Deserialize)]
 pub struct Run {
+    #[serde(skip)]
+    api_root: String,
     info: RunInfo,
     data: RunData,
 }
@@ -44,9 +46,9 @@ pub enum Status {
 }
 
 impl Run {
-    pub fn end_run(&mut self, api_root: &str, status: Status) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn end_run(&mut self, status: Status) -> Result<(), Box<dyn std::error::Error>> {
         let new_run_info = checked_post_request::<UpdateRunRequest, UpdateRunResponse>(
-            &format!("{api_root}/api/2.0/mlflow/runs/update"),
+            &format!("{}/api/2.0/mlflow/runs/update", self.api_root),
             &UpdateRunRequest {
                 run_id: self.info.run_id.clone(),
                 status,
@@ -61,9 +63,9 @@ impl Run {
         Ok(())
     }
 
-    pub fn log_metric(&self, api_root: &str, key: &str, value: f32, step: Option<u64>) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn log_metric(&self, key: &str, value: f32, step: Option<u64>) -> Result<(), Box<dyn std::error::Error>> {
         checked_post_request::<LogMetricRequest, LogMetricResponse>(
-            &format!("{api_root}/api/2.0/mlflow/runs/log-metric"),
+            &format!("{}/api/2.0/mlflow/runs/log-metric", self.api_root),
             &LogMetricRequest{
                 run_id: self.info.run_id.clone(),
                 key: key.to_owned(),
@@ -78,9 +80,9 @@ impl Run {
         Ok(())
     }
 
-    pub fn log_parameter(&self, api_root: &str, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn log_parameter(&self, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error>> {
         checked_post_request::<LogParameterRequest, LogParameterResponse>(
-            &format!("{api_root}/api/2.0/mlflow/runs/log-parameter"),
+            &format!("{}/api/2.0/mlflow/runs/log-parameter", self.api_root),
             &LogParameterRequest{
                 run_id: self.info.run_id.clone(),
                 key: key.to_owned(),
@@ -91,11 +93,11 @@ impl Run {
         Ok(())
     }
 
-    pub fn log_artifact_file(&self, api_root: &str, path_on_disk: &Path, path_destination: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn log_artifact_file(&self, path_on_disk: &Path, path_destination: &str) -> Result<(), Box<dyn std::error::Error>> {
         let client = reqwest::blocking::Client::new();
         let file = std::fs::File::open(path_on_disk)?;
 
-        client.post(format!("{api_root}/ajax-api/2.0/mlflow/upload-artifact"))
+        client.post(format!("{}/ajax-api/2.0/mlflow/upload-artifact", self.api_root))
             .body(file)
             .query(&[("run_uuid", self.info.run_id.as_str()), ("path", path_destination)])
             .send()?
@@ -104,10 +106,10 @@ impl Run {
         Ok(())
     }
 
-    pub fn log_artifact_bytes(&self, api_root: &str, data: Vec<u8>, path_destination: &str) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn log_artifact_bytes(&self, data: Vec<u8>, path_destination: &str) -> Result<(), Box<dyn std::error::Error>> {
         let client = reqwest::blocking::Client::new();
 
-        client.post(format!("{api_root}/ajax-api/2.0/mlflow/upload-artifact"))
+        client.post(format!("{}/ajax-api/2.0/mlflow/upload-artifact", self.api_root))
             .body(data)
             .query(&[("run_uuid", self.info.run_id.as_str()), ("path", path_destination)])
             .send()?
@@ -116,12 +118,12 @@ impl Run {
         Ok(())
     }
 
-    pub fn log_logger<L: Log + 'static>(&self, api_root: &str, logger: &ExperimentLogger<L>) -> Result<(), Box<dyn std::error::Error>> {
-        self.log_artifact_bytes(api_root, logger.to_string().into_bytes(), "log.log")
+    pub fn log_logger<L: Log + 'static>(&self, logger: &ExperimentLogger<L>) -> Result<(), Box<dyn std::error::Error>> {
+        self.log_artifact_bytes(logger.to_string().into_bytes(), "log.log")
     }
 
-    pub fn run_experiment(&mut self, api_root: &str, experiment_function: fn() -> Result<(), Box<dyn std::error::Error>>) -> Result<(), Box<dyn std::error::Error>> {
-        let result = panic::catch_unwind(experiment_function); // catch panics (might not catch all panics, see Rust docs)
+    pub fn run_experiment(&mut self, experiment_function: fn(&Run) -> Result<(), Box<dyn std::error::Error>>) -> Result<(), Box<dyn std::error::Error>> {
+        let result = panic::catch_unwind(|| experiment_function(&self)); // catch panics (might not catch all panics, see Rust docs)
 
         let successful = match result {
             Ok(inner_result) => match inner_result {
@@ -132,18 +134,18 @@ impl Run {
         };
 
         if successful {
-            self.end_run(api_root, Status::Finished)?;
+            self.end_run(Status::Finished)?;
         } else {
-            self.end_run(api_root, Status::Failed)?;
+            self.end_run(Status::Failed)?;
         }
 
         Ok(())
     }
 
-    pub fn run_experiment_with_logger<L: Log + 'static>(&mut self, api_root: &str, experiment_function: fn() -> Result<(), Box<dyn std::error::Error>>, logger: L) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn run_experiment_with_logger<L: Log + 'static>(&mut self, experiment_function: fn(&Run) -> Result<(), Box<dyn std::error::Error>>, logger: L) -> Result<(), Box<dyn std::error::Error>> {
         let experiment_logger = ExperimentLogger::init(logger)?;
 
-        let result = panic::catch_unwind(experiment_function); // catch panics (might not catch all panics, see Rust docs)
+        let result = panic::catch_unwind(|| experiment_function(&self)); // catch panics (might not catch all panics, see Rust docs)
 
         let successful = match result {
             Ok(inner_result) => match inner_result {
@@ -159,15 +161,23 @@ impl Run {
             },
         };
 
-        self.log_logger(api_root, experiment_logger)?;
+        self.log_logger(experiment_logger)?;
 
         if successful {
-            self.end_run(api_root, Status::Finished)?;
+            self.end_run(Status::Finished)?;
         } else {
-            self.end_run(api_root, Status::Failed)?;
+            self.end_run(Status::Failed)?;
         }
 
         Ok(())
+    }
+
+    pub fn get_api_root(&self) -> &str {
+        &self.api_root
+    }
+
+    pub fn set_api_root(&mut self, api_root: &str) {
+        self.api_root = api_root.to_owned()
     }
 
     pub fn get_run_uuid(&self) -> &str {

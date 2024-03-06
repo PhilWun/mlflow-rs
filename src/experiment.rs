@@ -1,5 +1,6 @@
 use std::{error::Error, fmt::Display, time::SystemTime};
 
+use log::error;
 use serde::Deserialize;
 
 use crate::{
@@ -47,6 +48,8 @@ impl Error for RepoContainsSubfolderReposError {}
 
 #[derive(Deserialize)]
 pub struct Experiment {
+    #[serde(skip)]
+    api_root: String,
     experiment_id: String,
     name: String,
     artifact_location: String,
@@ -63,7 +66,10 @@ impl Experiment {
                 name: name.to_owned(),
                 tags: vec![],
             },
-        )?;
+        ).map_err(|err| {
+            error!("an experiment with the name {} might exist already or still exists in a deleted state.", name);
+            err
+    })?;
 
         Self::search_with_id(api_root, &response.experiment_id)
     }
@@ -76,7 +82,10 @@ impl Experiment {
             },
         )?;
 
-        Ok(response.experiment)
+        let mut experiment = response.experiment;
+        experiment.api_root = api_root.to_owned();
+
+        Ok(experiment)
     }
 
     pub fn search_with_name(
@@ -90,12 +99,14 @@ impl Experiment {
             },
         )?;
 
-        Ok(response.experiment)
+        let mut experiment = response.experiment;
+        experiment.api_root = api_root.to_owned();
+
+        Ok(experiment)
     }
 
     fn create_run_unchecked(
         &self,
-        api_root: &str,
         run_name: Option<&str>,
         mut tags: Vec<RunTag>,
     ) -> Result<Run, Box<dyn std::error::Error>> {
@@ -105,7 +116,7 @@ impl Experiment {
         });
 
         let response: CreateRunResponse = checked_post_request(
-            &format!("{api_root}/api/2.0/mlflow/runs/create"),
+            &format!("{}/api/2.0/mlflow/runs/create", self.api_root),
             &CreateRunRequest {
                 experiment_id: self.experiment_id.clone(),
                 run_name: run_name.map(|x| x.to_owned()),
@@ -116,14 +127,14 @@ impl Experiment {
             },
         )?;
 
-        let run = response.run;
+        let mut run = response.run;
+        run.set_api_root(&self.api_root);
 
         Ok(run)
     }
 
     pub fn create_run(
         &self,
-        api_root: &str,
         run_name: Option<&str>,
         tags: Vec<RunTag>,
     ) -> Result<Run, Box<dyn std::error::Error>> {
@@ -139,12 +150,11 @@ impl Experiment {
             Err(DirtyRepoError {})?
         }
 
-        self.create_run_unchecked(api_root, run_name, tags)
+        self.create_run_unchecked(run_name, tags)
     }
 
     pub fn create_run_with_git_diff(
         &self,
-        api_root: &str,
         run_name: Option<&str>,
         tags: Vec<RunTag>,
     ) -> Result<Run, Box<dyn std::error::Error>> {
@@ -156,12 +166,12 @@ impl Experiment {
             Err(RepoContainsSubfolderReposError {})?
         }
 
-        let run = self.create_run_unchecked(api_root, run_name, tags)?;
+        let run = self.create_run_unchecked(run_name, tags)?;
 
         if !is_repo_clean()? {
             let diff = create_diff()?;
 
-            run.log_artifact_bytes(api_root, diff, "uncommitted.patch")?;
+            run.log_artifact_bytes(diff, "uncommitted.patch")?;
         }
 
         Ok(run)

@@ -1,9 +1,11 @@
 use std::{error::Error, path::Path};
 
-use experiment_tracking::{
-    experiment::Experiment, logger::ExperimentLogger, run::{RunTag, Status}
-};
 use log::{error, info, Log};
+use mlflow_rs::{
+    experiment::Experiment,
+    logger::ExperimentLogger,
+    run::{Run, RunTag, Status},
+};
 
 #[allow(dead_code)]
 fn create_experiment() -> Result<(), Box<dyn Error>> {
@@ -20,7 +22,7 @@ fn create_run_without_git_diff() -> Result<(), Box<dyn Error>> {
     let api_root = "http://localhost:5000";
     let experiment = Experiment::search_with_name(api_root, "test")?;
 
-    experiment.create_run(api_root, Some("new run"), vec![])?;
+    experiment.create_run(Some("new run"), vec![])?;
 
     Ok(())
 }
@@ -30,7 +32,7 @@ fn create_run_with_git_diff() -> Result<(), Box<dyn Error>> {
     let api_root = "http://localhost:5000";
     let experiment = Experiment::search_with_name(api_root, "test")?;
 
-    experiment.create_run_with_git_diff(api_root, Some("new run"), vec![])?;
+    experiment.create_run_with_git_diff(Some("new run"), vec![])?;
 
     Ok(())
 }
@@ -41,7 +43,6 @@ fn create_run_with_tags() -> Result<(), Box<dyn Error>> {
     let experiment = Experiment::search_with_name(api_root, "test")?;
 
     experiment.create_run_with_git_diff(
-        api_root,
         Some("new run"),
         vec![RunTag {
             key: "key".to_owned(),
@@ -57,13 +58,9 @@ fn end_run() -> Result<(), Box<dyn Error>> {
     let api_root = "http://localhost:5000";
     let experiment = Experiment::search_with_name(api_root, "test")?;
 
-    let mut run = experiment.create_run_with_git_diff(
-        api_root,
-        Some("new run"),
-        vec![],
-    )?;
+    let mut run = experiment.create_run_with_git_diff(Some("new run"), vec![])?;
 
-    run.end_run(api_root, Status::Finished)?;
+    run.end_run(Status::Finished)?;
 
     Ok(())
 }
@@ -73,15 +70,11 @@ fn log_metrics() -> Result<(), Box<dyn Error>> {
     let api_root = "http://localhost:5000";
     let experiment = Experiment::search_with_name(api_root, "test")?;
 
-    let run = experiment.create_run_with_git_diff(
-        api_root,
-        Some("new run"),
-        vec![],
-    )?;
+    let run = experiment.create_run_with_git_diff(Some("new run"), vec![])?;
 
-    run.log_metric(api_root, "mse", 1.4, Some(0))?;
-    run.log_metric(api_root, "mse", 1.2, Some(1))?;
-    run.log_metric(api_root, "mse", 0.9, Some(2))?;
+    run.log_metric("mse", 1.4, Some(0))?;
+    run.log_metric("mse", 1.2, Some(1))?;
+    run.log_metric("mse", 0.9, Some(2))?;
 
     Ok(())
 }
@@ -91,13 +84,9 @@ fn log_params() -> Result<(), Box<dyn Error>> {
     let api_root = "http://localhost:5000";
     let experiment = Experiment::search_with_name(api_root, "test")?;
 
-    let run = experiment.create_run_with_git_diff(
-        api_root,
-        Some("new run"),
-        vec![],
-    )?;
+    let run = experiment.create_run_with_git_diff(Some("new run"), vec![])?;
 
-    run.log_parameter(api_root, "param1", "value1")?;
+    run.log_parameter("param1", "value1")?;
 
     Ok(())
 }
@@ -107,13 +96,9 @@ fn log_file() -> Result<(), Box<dyn Error>> {
     let api_root = "http://localhost:5000";
     let experiment = Experiment::search_with_name(api_root, "test")?;
 
-    let run = experiment.create_run_with_git_diff(
-        api_root,
-        Some("new run"),
-        vec![],
-    )?;
+    let run = experiment.create_run_with_git_diff(Some("new run"), vec![])?;
 
-    run.log_artifact_file(api_root, Path::new(".gitignore"), ".gitignore")?;
+    run.log_artifact_file(Path::new(".gitignore"), ".gitignore")?;
 
     Ok(())
 }
@@ -123,13 +108,9 @@ fn log_bytes() -> Result<(), Box<dyn Error>> {
     let api_root = "http://localhost:5000";
     let experiment = Experiment::search_with_name(api_root, "test")?;
 
-    let run = experiment.create_run_with_git_diff(
-        api_root,
-        Some("new run"),
-        vec![],
-    )?;
+    let run = experiment.create_run_with_git_diff(Some("new run"), vec![])?;
 
-    run.log_artifact_bytes(api_root, "test data".to_owned().into_bytes(), "test.txt")?;
+    run.log_artifact_bytes("test data".to_owned().into_bytes(), "test.txt")?;
 
     Ok(())
 }
@@ -145,15 +126,13 @@ impl Log for TestLogger {
         println!("{}: {}", record.level(), record.args());
     }
 
-    fn flush(&self) {
-        
-    }
+    fn flush(&self) {}
 }
 
 #[allow(dead_code)]
 fn experiment_logger() -> Result<(), Box<dyn Error>> {
     let logger = ExperimentLogger::init(TestLogger {})?;
-    
+
     log::set_max_level(log::LevelFilter::Trace);
 
     info!("info message");
@@ -167,31 +146,31 @@ fn experiment_logger() -> Result<(), Box<dyn Error>> {
 #[allow(dead_code)]
 fn log_logger() -> Result<(), Box<dyn Error>> {
     let logger = ExperimentLogger::init(TestLogger {})?;
-    
+
     log::set_max_level(log::LevelFilter::Trace);
 
     let api_root = "http://localhost:5000";
     let experiment = Experiment::search_with_name(api_root, "test")?;
 
-    let run = experiment.create_run_with_git_diff(
-        api_root,
-        Some("new run"),
-        vec![],
-    )?;
+    let run = experiment.create_run_with_git_diff(Some("new run"), vec![])?;
 
     info!("info message");
     error!("error message");
 
-    run.log_logger(api_root, logger)?;
+    run.log_logger(logger)?;
 
     Ok(())
 }
 
-fn experiment_function() -> Result<(), Box<dyn Error>> {
+fn experiment_function(run: &Run) -> Result<(), Box<dyn Error>> {
     info!("info message");
     error!("error message");
 
-    u32::from_str_radix("a", 10).unwrap();
+    run.log_parameter("learning_rate", "0.001")?;
+    run.log_metric("metric", 42.0, Some(0))?;
+    run.log_artifact_bytes("test data".to_owned().into_bytes(), "test.txt")?;
+
+    u32::from_str_radix("a", 10).unwrap();  // panics, to show that panics get caught and handled
 
     Ok(())
 }
@@ -201,13 +180,9 @@ fn run_experiment() -> Result<(), Box<dyn Error>> {
     let api_root = "http://localhost:5000";
     let experiment = Experiment::search_with_name(api_root, "test")?;
 
-    let mut run = experiment.create_run_with_git_diff(
-        api_root,
-        Some("new run"),
-        vec![],
-    )?;
+    let mut run = experiment.create_run_with_git_diff(Some("new run"), vec![])?;
 
-    run.run_experiment(api_root, experiment_function)?;
+    run.run_experiment(experiment_function)?;
 
     Ok(())
 }
@@ -220,13 +195,9 @@ fn run_experiment_with_logger() -> Result<(), Box<dyn Error>> {
     let logger = TestLogger {};
     log::set_max_level(log::LevelFilter::Info);
 
-    let mut run = experiment.create_run_with_git_diff(
-        api_root,
-        Some("new run"),
-        vec![],
-    )?;
+    let mut run = experiment.create_run_with_git_diff(Some("new run"), vec![])?;
 
-    run.run_experiment_with_logger(api_root, experiment_function, logger)?;
+    run.run_experiment_with_logger(experiment_function, logger)?;
 
     Ok(())
 }
