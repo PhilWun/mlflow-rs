@@ -42,6 +42,7 @@ impl<L: Log + 'static> ExperimentLogger<L> {
         let logger = Box::leak(Box::new(Self::build(wrapped_logger))); // create static reference of the new logger
 
         log::set_logger(logger)?;
+        log::set_max_level(log::LevelFilter::Trace);
 
         Ok(logger)
     }
