@@ -115,6 +115,8 @@ impl Experiment {
             value: get_commit_hash()?,
         });
 
+        // TODO: log which binary was executed
+
         let response: CreateRunResponse = checked_post_request(
             &format!("{}/api/2.0/mlflow/runs/create", self.api_root),
             &CreateRunRequest {

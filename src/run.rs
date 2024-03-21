@@ -1,6 +1,6 @@
-use std::{panic, path::Path, time::SystemTime};
+use std::{panic, path::Path, process::exit, sync::{atomic::{AtomicBool, Ordering}, Arc}, time::SystemTime};
 
-use log::{error, Log};
+use log::Log;
 use serde::{Deserialize, Serialize};
 
 use crate::{logger::ExperimentLogger, schemas::{LogMetricRequest, LogMetricResponse, LogParameterRequest, LogParameterResponse, UpdateRunRequest, UpdateRunResponse}, utils::checked_post_request};
@@ -122,16 +122,40 @@ impl Run {
         self.log_artifact_bytes(logger.to_string().into_bytes(), "log.log")
     }
 
-    pub fn run_experiment(&mut self, experiment_function: fn(&Run) -> Result<(), Box<dyn std::error::Error>>) -> Result<(), Box<dyn std::error::Error>> {
-        let result = panic::catch_unwind(|| experiment_function(&self)); // catch panics (might not catch all panics, see Rust docs)
+    pub fn run_experiment(&mut self, experiment_function: fn(&Run, Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>>) -> Result<(), Box<dyn std::error::Error>> {
+        let was_killed = Arc::new(AtomicBool::new(false));
+        let was_killed_clone = was_killed.clone();
+
+        ctrlc::set_handler(move || {
+            if was_killed_clone.load(Ordering::Relaxed) {
+                println!();
+                println!("The experiment will be forced to terminate. The status of the run will remain at UNFINISHED.");
+                exit(1);
+            } else {
+                was_killed_clone.store(true, Ordering::Relaxed);
+                println!();
+                println!("The experiment was asked to terminate. If you want to force termination, press Ctrl+C again.");
+            }
+        })?;
+        
+        // catch panics (might not catch all panics, see Rust docs)
+        let result = panic::catch_unwind(|| {
+            experiment_function(&self, was_killed.clone())
+        });
 
         let successful = match result {
             Ok(inner_result) => match inner_result {
                 Ok(_) => true,
-                Err(_) => false,
+                Err(_) => false, // TODO: return error
             },
-            Err(_) => false,
+            Err(_) => false, // TODO: return error
         };
+
+        if was_killed.load(Ordering::Relaxed) {
+            self.end_run(Status::Killed)?;
+
+            return Ok(());
+        }
 
         if successful {
             self.end_run(Status::Finished)?;
@@ -142,32 +166,11 @@ impl Run {
         Ok(())
     }
 
-    pub fn run_experiment_with_logger<L: Log + 'static>(&mut self, experiment_function: fn(&Run) -> Result<(), Box<dyn std::error::Error>>, logger: L) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn run_experiment_with_logger<L: Log + 'static>(&mut self, experiment_function: fn(&Run, Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>>, logger: L) -> Result<(), Box<dyn std::error::Error>> {
         let experiment_logger = ExperimentLogger::init(logger)?;
 
-        let result = panic::catch_unwind(|| experiment_function(&self)); // catch panics (might not catch all panics, see Rust docs)
-
-        let successful = match result {
-            Ok(inner_result) => match inner_result {
-                Ok(_) => true,
-                Err(err) => {
-                    error!("{}", err);
-                    false
-                },
-            },
-            Err(_) => {
-                error!("experiment_function panicked");
-                false
-            },
-        };
-
+        self.run_experiment(experiment_function)?;
         self.log_logger(experiment_logger)?;
-
-        if successful {
-            self.end_run(Status::Finished)?;
-        } else {
-            self.end_run(Status::Failed)?;
-        }
 
         Ok(())
     }

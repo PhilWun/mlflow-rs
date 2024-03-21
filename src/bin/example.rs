@@ -1,4 +1,4 @@
-use std::{error::Error, path::Path};
+use std::{error::Error, path::Path, sync::{atomic::{AtomicBool, Ordering}, Arc}, thread::sleep, time::Duration};
 
 use log::{error, info, Log};
 use mlflow_rs::{
@@ -162,7 +162,7 @@ fn log_logger() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn experiment_function(run: &Run) -> Result<(), Box<dyn Error>> {
+fn experiment_function(run: &Run, _: Arc<AtomicBool>) -> Result<(), Box<dyn Error>> {
     info!("info message");
     error!("error message");
 
@@ -202,8 +202,46 @@ fn run_experiment_with_logger() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+#[allow(dead_code)]
+fn ctrl_c_handler() -> Result<(), Box<dyn Error>> {
+    let api_root = "http://localhost:5000";
+    let experiment = Experiment::search_with_name(api_root, "test")?;
+
+    let mut run = experiment.create_run_with_git_diff(Some("new run"), vec![])?;
+
+    run.run_experiment(|_, was_killed| {
+        println!("running");
+        
+        while !was_killed.load(Ordering::Relaxed) {
+            
+        }
+
+        Ok(())
+    })?;
+
+    Ok(())
+}
+
+#[allow(dead_code)]
+fn ctrl_c_handler_ignore_signal() -> Result<(), Box<dyn Error>> {
+    let api_root = "http://localhost:5000";
+    let experiment = Experiment::search_with_name(api_root, "test")?;
+
+    let mut run = experiment.create_run_with_git_diff(Some("new run"), vec![])?;
+
+    run.run_experiment(|_, _| {
+        println!("running");
+        
+        sleep(Duration::from_secs(10));
+
+        Ok(())
+    })?;
+
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
-    run_experiment_with_logger()?;
+    ctrl_c_handler()?;
 
     Ok(())
 }
