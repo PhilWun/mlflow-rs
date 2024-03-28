@@ -1,11 +1,27 @@
-use std::{panic, path::Path, process::exit, sync::{atomic::{AtomicBool, Ordering}, Arc}, time::SystemTime};
+use std::{
+    panic,
+    path::Path,
+    process::exit,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    time::SystemTime,
+};
 
 use log::Log;
 use serde::{Deserialize, Serialize};
 
-use crate::{logger::ExperimentLogger, schemas::{LogMetricRequest, LogMetricResponse, LogParameterRequest, LogParameterResponse, UpdateRunRequest, UpdateRunResponse}, utils::checked_post_request};
+use crate::{
+    logger::ExperimentLogger,
+    schemas::{
+        LogMetricRequest, LogMetricResponse, LogParameterRequest, LogParameterResponse,
+        UpdateRunRequest, UpdateRunResponse,
+    },
+    utils::checked_post_request,
+};
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 pub struct Run {
     #[serde(skip)]
     api_root: String,
@@ -13,7 +29,7 @@ pub struct Run {
     data: RunData,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 pub(crate) struct RunInfo {
     run_uuid: String,
     experiment_id: String,
@@ -26,7 +42,7 @@ pub(crate) struct RunInfo {
     run_id: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 struct RunData {
     tags: Vec<RunTag>,
 }
@@ -38,14 +54,15 @@ pub struct RunTag {
 }
 
 #[derive(Serialize, Deserialize)]
-#[serde(rename_all="UPPERCASE")]
+#[serde(rename_all = "UPPERCASE")]
 pub enum Status {
     Finished,
     Killed,
-    Failed
+    Failed,
 }
 
 impl Run {
+    #[cfg(not(disable_experiment_tracking))]
     pub fn end_run(&mut self, status: Status) -> Result<(), Box<dyn std::error::Error>> {
         let new_run_info = checked_post_request::<UpdateRunRequest, UpdateRunResponse>(
             &format!("{}/api/2.0/mlflow/runs/update", self.api_root),
@@ -54,75 +71,157 @@ impl Run {
                 status,
                 end_time: SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)?
-                    .as_millis()
+                    .as_millis(),
             },
-        )?.run_info;
+        )?
+        .run_info;
 
         self.info = new_run_info;
 
         Ok(())
     }
 
-    pub fn log_metric(&self, key: &str, value: f32, step: Option<u64>) -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(disable_experiment_tracking)]
+    pub fn end_run(&mut self, _: Status) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
+    }
+
+    #[cfg(not(disable_experiment_tracking))]
+    pub fn log_metric(
+        &self,
+        key: &str,
+        value: f32,
+        step: Option<u64>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         checked_post_request::<LogMetricRequest, LogMetricResponse>(
             &format!("{}/api/2.0/mlflow/runs/log-metric", self.api_root),
-            &LogMetricRequest{
+            &LogMetricRequest {
                 run_id: self.info.run_id.clone(),
                 key: key.to_owned(),
                 value,
                 timestamp: SystemTime::now()
                     .duration_since(SystemTime::UNIX_EPOCH)?
                     .as_millis(),
-                step
-            }
+                step,
+            },
         )?;
 
         Ok(())
     }
 
+    #[cfg(disable_experiment_tracking)]
+    pub fn log_metric(
+        &self,
+        _: &str,
+        _: f32,
+        _: Option<u64>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
+    }
+
+    #[cfg(not(disable_experiment_tracking))]
     pub fn log_parameter(&self, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error>> {
         checked_post_request::<LogParameterRequest, LogParameterResponse>(
             &format!("{}/api/2.0/mlflow/runs/log-parameter", self.api_root),
-            &LogParameterRequest{
+            &LogParameterRequest {
                 run_id: self.info.run_id.clone(),
                 key: key.to_owned(),
-                value: value.to_owned()
-            }
+                value: value.to_owned(),
+            },
         )?;
 
         Ok(())
     }
 
-    pub fn log_artifact_file(&self, path_on_disk: &Path, path_destination: &str) -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(disable_experiment_tracking)]
+    pub fn log_parameter(&self, _: &str, _: &str) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
+    }
+
+    #[cfg(not(disable_experiment_tracking))]
+    pub fn log_artifact_file(
+        &self,
+        path_on_disk: &Path,
+        path_destination: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let client = reqwest::blocking::Client::new();
         let file = std::fs::File::open(path_on_disk)?;
 
-        client.post(format!("{}/ajax-api/2.0/mlflow/upload-artifact", self.api_root))
+        client
+            .post(format!(
+                "{}/ajax-api/2.0/mlflow/upload-artifact",
+                self.api_root
+            ))
             .body(file)
-            .query(&[("run_uuid", self.info.run_id.as_str()), ("path", path_destination)])
+            .query(&[
+                ("run_uuid", self.info.run_id.as_str()),
+                ("path", path_destination),
+            ])
             .send()?
             .error_for_status()?;
 
         Ok(())
     }
 
-    pub fn log_artifact_bytes(&self, data: Vec<u8>, path_destination: &str) -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(disable_experiment_tracking)]
+    pub fn log_artifact_file(&self, _: &Path, _: &str) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
+    }
+
+    #[cfg(not(disable_experiment_tracking))]
+    pub fn log_artifact_bytes(
+        &self,
+        data: Vec<u8>,
+        path_destination: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let client = reqwest::blocking::Client::new();
 
-        client.post(format!("{}/ajax-api/2.0/mlflow/upload-artifact", self.api_root))
+        client
+            .post(format!(
+                "{}/ajax-api/2.0/mlflow/upload-artifact",
+                self.api_root
+            ))
             .body(data)
-            .query(&[("run_uuid", self.info.run_id.as_str()), ("path", path_destination)])
+            .query(&[
+                ("run_uuid", self.info.run_id.as_str()),
+                ("path", path_destination),
+            ])
             .send()?
             .error_for_status()?;
 
         Ok(())
     }
 
-    pub fn log_logger<L: Log + 'static>(&self, logger: &ExperimentLogger<L>) -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(disable_experiment_tracking)]
+    pub fn log_artifact_bytes(
+        &self,
+        _: Vec<u8>,
+        _: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
+    }
+
+    #[cfg(not(disable_experiment_tracking))]
+    pub fn log_logger<L: Log + 'static>(
+        &self,
+        logger: &ExperimentLogger<L>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         self.log_artifact_bytes(logger.to_string().into_bytes(), "log.log")
     }
 
-    pub fn run_experiment(&mut self, experiment_function: fn(&Run, Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>>) -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(disable_experiment_tracking)]
+    pub fn log_logger<L: Log + 'static>(
+        &self,
+        _: &ExperimentLogger<L>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
+    }
+
+    #[cfg(not(disable_experiment_tracking))]
+    pub fn run_experiment(
+        &mut self,
+        experiment_function: fn(&Run, Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let was_killed = Arc::new(AtomicBool::new(false));
         let was_killed_clone = was_killed.clone();
 
@@ -137,11 +236,9 @@ impl Run {
                 println!("The experiment was asked to terminate. If you want to force termination, press Ctrl+C again.");
             }
         })?;
-        
+
         // catch panics (might not catch all panics, see Rust docs)
-        let result = panic::catch_unwind(|| {
-            experiment_function(&self, was_killed.clone())
-        });
+        let result = panic::catch_unwind(|| experiment_function(&self, was_killed.clone()));
 
         let successful = match result {
             Ok(inner_result) => match inner_result {
@@ -166,12 +263,34 @@ impl Run {
         Ok(())
     }
 
-    pub fn run_experiment_with_logger<L: Log + 'static>(&mut self, experiment_function: fn(&Run, Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>>, logger: L) -> Result<(), Box<dyn std::error::Error>> {
+    #[cfg(disable_experiment_tracking)]
+    pub fn run_experiment(
+        &mut self,
+        _: fn(&Run, Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
+    }
+
+    #[cfg(not(disable_experiment_tracking))]
+    pub fn run_experiment_with_logger<L: Log + 'static>(
+        &mut self,
+        experiment_function: fn(&Run, Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>>,
+        logger: L,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         let experiment_logger = ExperimentLogger::init(logger)?;
 
         self.run_experiment(experiment_function)?;
         self.log_logger(experiment_logger)?;
 
+        Ok(())
+    }
+
+    #[cfg(disable_experiment_tracking)]
+    pub fn run_experiment_with_logger<L: Log + 'static>(
+        &mut self,
+        _: fn(&Run, Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>>,
+        _: L,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     }
 

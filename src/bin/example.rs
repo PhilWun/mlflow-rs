@@ -18,6 +18,16 @@ fn create_experiment() -> Result<(), Box<dyn Error>> {
 }
 
 #[allow(dead_code)]
+fn search_experiment_with_id() -> Result<(), Box<dyn Error>> {
+    let api_root = "http://localhost:5000";
+    let experiment = Experiment::search_with_id(api_root, "1")?;
+
+    println!("Got experiment {}", experiment.get_name());
+
+    Ok(())
+}
+
+#[allow(dead_code)]
 fn create_run_without_git_diff() -> Result<(), Box<dyn Error>> {
     let api_root = "http://localhost:5000";
     let experiment = Experiment::search_with_name(api_root, "test")?;

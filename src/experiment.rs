@@ -4,7 +4,10 @@ use log::error;
 use serde::Deserialize;
 
 use crate::{
-    git_utils::{create_diff, does_repo_contain_subfolders_with_repos, does_repo_contain_submodules, get_commit_hash, is_repo_clean},
+    git_utils::{
+        create_diff, does_repo_contain_subfolders_with_repos, does_repo_contain_submodules,
+        get_commit_hash, is_repo_clean,
+    },
     run::{Run, RunTag},
     schemas::{
         CreateExperimentRequest, CreateExperimentResponse, CreateRunRequest, CreateRunResponse,
@@ -29,7 +32,10 @@ pub struct RepoContainsSubmodulesError {}
 
 impl Display for RepoContainsSubmodulesError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "The repository contains one or more submodules which is currently not supported.")
+        write!(
+            f,
+            "The repository contains one or more submodules which is currently not supported."
+        )
     }
 }
 
@@ -46,7 +52,7 @@ impl Display for RepoContainsSubfolderReposError {
 
 impl Error for RepoContainsSubfolderReposError {}
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 pub struct Experiment {
     #[serde(skip)]
     api_root: String,
@@ -59,6 +65,7 @@ pub struct Experiment {
 }
 
 impl Experiment {
+    #[cfg(not(disable_experiment_tracking))]
     pub fn new(api_root: &str, name: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let response: CreateExperimentResponse = checked_post_request(
             &format!("{api_root}/api/2.0/mlflow/experiments/create"),
@@ -70,10 +77,15 @@ impl Experiment {
             error!("an experiment with the name {} might exist already or still exists in a deleted state.", name);
             err
     })?;
-
         Self::search_with_id(api_root, &response.experiment_id)
     }
 
+    #[cfg(disable_experiment_tracking)]
+    pub fn new(_: &str, _: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        Ok(Self::default())
+    }
+
+    #[cfg(not(disable_experiment_tracking))]
     pub fn search_with_id(api_root: &str, id: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let response: GetExperimentResponse = checked_get_request(
             &format!("{api_root}/api/2.0/mlflow/experiments/get"),
@@ -88,6 +100,12 @@ impl Experiment {
         Ok(experiment)
     }
 
+    #[cfg(disable_experiment_tracking)]
+    pub fn search_with_id(_: &str, _: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        Ok(Self::default())
+    }
+
+    #[cfg(not(disable_experiment_tracking))]
     pub fn search_with_name(
         api_root: &str,
         name: &str,
@@ -105,6 +123,12 @@ impl Experiment {
         Ok(experiment)
     }
 
+    #[cfg(disable_experiment_tracking)]
+    pub fn search_with_name(_: &str, _: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        Ok(Self::default())
+    }
+
+    #[cfg(not(disable_experiment_tracking))]
     fn create_run_unchecked(
         &self,
         run_name: Option<&str>,
@@ -114,8 +138,6 @@ impl Experiment {
             key: "mlflow.source.git.commit".to_owned(),
             value: get_commit_hash()?,
         });
-
-        // TODO: log which binary was executed
 
         let response: CreateRunResponse = checked_post_request(
             &format!("{}/api/2.0/mlflow/runs/create", self.api_root),
@@ -135,6 +157,7 @@ impl Experiment {
         Ok(run)
     }
 
+    #[cfg(not(disable_experiment_tracking))]
     pub fn create_run(
         &self,
         run_name: Option<&str>,
@@ -155,6 +178,16 @@ impl Experiment {
         self.create_run_unchecked(run_name, tags)
     }
 
+    #[cfg(disable_experiment_tracking)]
+    pub fn create_run(
+        &self,
+        _: Option<&str>,
+        _: Vec<RunTag>,
+    ) -> Result<Run, Box<dyn std::error::Error>> {
+        Ok(Run::default())
+    }
+
+    #[cfg(not(disable_experiment_tracking))]
     pub fn create_run_with_git_diff(
         &self,
         run_name: Option<&str>,
@@ -177,6 +210,15 @@ impl Experiment {
         }
 
         Ok(run)
+    }
+
+    #[cfg(disable_experiment_tracking)]
+    pub fn create_run_with_git_diff(
+        &self,
+        _: Option<&str>,
+        _: Vec<RunTag>,
+    ) -> Result<Run, Box<dyn std::error::Error>> {
+        Ok(Run::default())
     }
 
     // TODO: search run
