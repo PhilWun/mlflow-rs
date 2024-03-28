@@ -7,6 +7,4 @@ pub mod run;
 mod schemas;
 mod utils;
 
-// TODO: log which binary was executed
-// TODO: log command line arguments
 // TODO: add log function to log serde serializable structs as parameters

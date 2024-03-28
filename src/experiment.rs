@@ -134,9 +134,19 @@ impl Experiment {
         run_name: Option<&str>,
         mut tags: Vec<RunTag>,
     ) -> Result<Run, Box<dyn std::error::Error>> {
+        use std::env;
+
         tags.push(RunTag {
             key: "mlflow.source.git.commit".to_owned(),
             value: get_commit_hash()?,
+        });
+
+        let args: Vec<String> = env::args().collect();
+        let args = args.join(" ");
+
+        tags.push(RunTag {
+            key: "cmd".to_owned(),
+            value: args,
         });
 
         let response: CreateRunResponse = checked_post_request(

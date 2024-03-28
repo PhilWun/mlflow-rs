@@ -251,7 +251,7 @@ fn ctrl_c_handler_ignore_signal() -> Result<(), Box<dyn Error>> {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    ctrl_c_handler()?;
+    run_experiment_with_logger()?;
 
     Ok(())
 }
