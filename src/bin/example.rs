@@ -1,4 +1,13 @@
-use std::{error::Error, path::Path, sync::{atomic::{AtomicBool, Ordering}, Arc}, thread::sleep, time::Duration};
+use std::{
+    error::Error,
+    path::Path,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+    thread::sleep,
+    time::Duration,
+};
 
 use log::{error, info, Log};
 use mlflow_rs::{
@@ -6,6 +15,7 @@ use mlflow_rs::{
     logger::ExperimentLogger,
     run::{Run, RunTag, Status},
 };
+use serde::Serialize;
 
 #[allow(dead_code)]
 fn create_experiment() -> Result<(), Box<dyn Error>> {
@@ -101,6 +111,40 @@ fn log_params() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+#[derive(Serialize)]
+struct ParamStruct {
+    a: String,
+    b: u32,
+    c: Vec<u32>,
+    d: InnerStruct,
+}
+
+#[derive(Serialize)]
+struct InnerStruct {
+    e: u32,
+    f: String,
+}
+
+#[allow(dead_code)]
+fn log_struct_params() -> Result<(), Box<dyn Error>> {
+    let api_root = "http://localhost:5000";
+    let experiment = Experiment::search_with_name(api_root, "test")?;
+
+    let run = experiment.create_run_with_git_diff(Some("new run"), vec![])?;
+
+    run.log_parameter_struct(ParamStruct {
+        a: "test".to_owned(),
+        b: 42,
+        c: vec![1, 2, 3, 4, 5],
+        d: InnerStruct {
+            e: 43,
+            f: "test2".to_owned(),
+        },
+    })?;
+
+    Ok(())
+}
+
 #[allow(dead_code)]
 fn log_file() -> Result<(), Box<dyn Error>> {
     let api_root = "http://localhost:5000";
@@ -121,6 +165,48 @@ fn log_bytes() -> Result<(), Box<dyn Error>> {
     let run = experiment.create_run_with_git_diff(Some("new run"), vec![])?;
 
     run.log_artifact_bytes("test data".to_owned().into_bytes(), "test.txt")?;
+
+    Ok(())
+}
+
+#[allow(dead_code)]
+fn log_struct_as_json() -> Result<(), Box<dyn Error>> {
+    let api_root = "http://localhost:5000";
+    let experiment = Experiment::search_with_name(api_root, "test")?;
+    let run = experiment.create_run_with_git_diff(Some("new run"), vec![])?;
+
+    let data = ParamStruct {
+        a: "test".to_owned(),
+        b: 42,
+        c: vec![1, 2, 3, 4, 5],
+        d: InnerStruct {
+            e: 43,
+            f: "test2".to_owned(),
+        },
+    };
+
+    run.log_artifact_struct_as_json(data, "test.json")?;
+
+    Ok(())
+}
+
+#[allow(dead_code)]
+fn log_struct_as_binary() -> Result<(), Box<dyn Error>> {
+    let api_root = "http://localhost:5000";
+    let experiment = Experiment::search_with_name(api_root, "test")?;
+    let run = experiment.create_run_with_git_diff(Some("new run"), vec![])?;
+
+    let data = ParamStruct {
+        a: "test".to_owned(),
+        b: 42,
+        c: vec![1, 2, 3, 4, 5],
+        d: InnerStruct {
+            e: 43,
+            f: "test2".to_owned(),
+        },
+    };
+
+    run.log_artifact_struct_as_binary(data, "test.bin")?;
 
     Ok(())
 }
@@ -180,7 +266,7 @@ fn experiment_function(run: &Run, _: Arc<AtomicBool>) -> Result<(), Box<dyn Erro
     run.log_metric("metric", 42.0, Some(0))?;
     run.log_artifact_bytes("test data".to_owned().into_bytes(), "test.txt")?;
 
-    u32::from_str_radix("a", 10).unwrap();  // panics, to show that panics get caught and handled
+    u32::from_str_radix("a", 10).unwrap(); // panics, to show that panics get caught and handled
 
     Ok(())
 }
@@ -221,10 +307,8 @@ fn ctrl_c_handler() -> Result<(), Box<dyn Error>> {
 
     run.run_experiment(|_, was_killed| {
         println!("running");
-        
-        while !was_killed.load(Ordering::Relaxed) {
-            
-        }
+
+        while !was_killed.load(Ordering::Relaxed) {}
 
         Ok(())
     })?;
@@ -241,7 +325,7 @@ fn ctrl_c_handler_ignore_signal() -> Result<(), Box<dyn Error>> {
 
     run.run_experiment(|_, _| {
         println!("running");
-        
+
         sleep(Duration::from_secs(10));
 
         Ok(())
@@ -251,7 +335,7 @@ fn ctrl_c_handler_ignore_signal() -> Result<(), Box<dyn Error>> {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    run_experiment_with_logger()?;
+    log_struct_as_binary()?;
 
     Ok(())
 }

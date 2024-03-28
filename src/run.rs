@@ -11,6 +11,8 @@ use std::{
 
 use log::Log;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use thiserror::Error;
 
 use crate::{
     logger::ExperimentLogger,
@@ -60,6 +62,10 @@ pub enum Status {
     Killed,
     Failed,
 }
+
+#[derive(Error, Debug)]
+#[error("value is not a map")]
+struct NotAMapError;
 
 impl Run {
     #[cfg(not(disable_experiment_tracking))]
@@ -139,6 +145,50 @@ impl Run {
     }
 
     #[cfg(not(disable_experiment_tracking))]
+    pub fn log_parameter_struct<T: Serialize>(
+        &self,
+        parameters: T,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let parsed = serde_json::to_value(parameters)?;
+        self.log_serde_value_as_parameters("", parsed)?;
+
+        Ok(())
+    }
+
+    #[cfg(disable_experiment_tracking)]
+    pub fn log_parameter_struct<T: Serialize>(
+        &self,
+        _: T,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
+    }
+
+    #[cfg(not(disable_experiment_tracking))]
+    fn log_serde_value_as_parameters(
+        &self,
+        prefix: &str,
+        value: Value,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let map = match value {
+            Value::Object(map) => Ok(map),
+            _ => Err(NotAMapError),
+        }?;
+
+        for (k, v) in map {
+            match v {
+                Value::Object(_) => {
+                    self.log_serde_value_as_parameters(&format!("{prefix}{k}/"), v)?;
+                }
+                _ => {
+                    self.log_parameter(&format!("{prefix}{k}"), &v.to_string())?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    #[cfg(not(disable_experiment_tracking))]
     pub fn log_artifact_file(
         &self,
         path_on_disk: &Path,
@@ -197,6 +247,50 @@ impl Run {
         &self,
         _: Vec<u8>,
         _: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
+    }
+
+    #[cfg(not(disable_experiment_tracking))]
+    pub fn log_artifact_struct_as_json<T: Serialize>(
+        &self,
+        data_struct: T,
+        path_destination: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let data = serde_json::to_string(&data_struct)?.into_bytes();
+
+        self.log_artifact_bytes(data, path_destination)?;
+
+        Ok(())
+    }
+
+    #[cfg(disable_experiment_tracking)]
+    pub fn log_artifact_struct_as_json<T: Serialize>(
+        &self,
+        data_struct: T,
+        path_destination: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        Ok(())
+    }
+
+    #[cfg(not(disable_experiment_tracking))]
+    pub fn log_artifact_struct_as_binary<T: Serialize>(
+        &self,
+        data_struct: T,
+        path_destination: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let data = bincode::serialize(&data_struct)?;
+
+        self.log_artifact_bytes(data, path_destination)?;
+
+        Ok(())
+    }
+
+    #[cfg(disable_experiment_tracking)]
+    pub fn log_artifact_struct_as_binary<T: Serialize>(
+        &self,
+        data_struct: T,
+        path_destination: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     }
