@@ -45,6 +45,16 @@ pub(crate) struct CreateRunResponse {
 }
 
 #[derive(Serialize)]
+pub(crate) struct GetRunRequest {
+    pub(crate) run_id: String,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct GetRunResponse {
+    pub(crate) run: Run
+}
+
+#[derive(Serialize)]
 pub(crate) struct UpdateRunRequest {
     pub(crate) run_id: String,
     pub(crate) status: Status,

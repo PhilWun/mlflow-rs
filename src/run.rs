@@ -1,12 +1,8 @@
 use std::{
-    panic,
-    path::Path,
-    process::exit,
-    sync::{
+    panic, path::Path, process::exit, sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
-    },
-    time::SystemTime,
+    }, time::SystemTime
 };
 
 use log::Log;
@@ -18,9 +14,9 @@ use crate::{
     logger::ExperimentLogger,
     schemas::{
         LogMetricRequest, LogMetricResponse, LogParameterRequest, LogParameterResponse,
-        UpdateRunRequest, UpdateRunResponse,
+        UpdateRunRequest, UpdateRunResponse, GetRunRequest, GetRunResponse
     },
-    utils::checked_post_request,
+    utils::{checked_post_request, checked_get_request},
 };
 
 #[derive(Deserialize, Default)]
@@ -68,6 +64,26 @@ pub enum Status {
 struct NotAMapError;
 
 impl Run {
+    #[cfg(not(disable_experiment_tracking))]
+    pub fn get_run(api_root: &str, run_id: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        let mut run = checked_get_request::<GetRunRequest, GetRunResponse>(
+            &format!("{}/api/2.0/mlflow/runs/get", api_root),
+            &GetRunRequest {
+                run_id: run_id.to_owned(),
+            },
+        )?
+        .run;
+
+        run.set_api_root(api_root);
+
+        Ok(run)
+    }
+
+    #[cfg(disable_experiment_tracking)]
+    pub fn get_run() -> Result<Self, Box<dyn std::error::Error>> {
+        Ok(Run::default())
+    }
+
     #[cfg(not(disable_experiment_tracking))]
     pub fn end_run(&mut self, status: Status) -> Result<(), Box<dyn std::error::Error>> {
         let new_run_info = checked_post_request::<UpdateRunRequest, UpdateRunResponse>(
@@ -386,6 +402,41 @@ impl Run {
         _: L,
     ) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
+    }
+
+    pub fn get_artifact_as_bytes(&self, path: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        let client = reqwest::blocking::Client::new();
+        let response = client
+            .get(format!(
+                "{}/get-artifact",
+                self.api_root
+            ))
+            .query(&[
+                ("path", path),
+                ("run_uuid", self.info.run_id.as_str()),
+            ])
+            .send()?
+            .error_for_status()?;
+
+        Ok(response.bytes()?.into())
+    }
+
+    pub fn get_artifact_as_string(&self, path: &str) -> Result<String, Box<dyn std::error::Error>> {
+        Ok(String::from_utf8(self.get_artifact_as_bytes(path)?)?)
+    }
+
+    pub fn get_artifact_binary_as_struct<T>(&self, path: &str) -> Result<T, Box<dyn std::error::Error>>
+    where T: for<'de> Deserialize<'de> {
+        let bytes = self.get_artifact_as_bytes(path)?;
+
+        Ok(bincode::deserialize(&bytes)?)
+    }
+
+    pub fn get_artifact_json_as_struct<T>(&self, path: &str) -> Result<T, Box<dyn std::error::Error>>
+    where T: for<'de> Deserialize<'de> {
+        let text = self.get_artifact_as_string(path)?;
+
+        Ok(serde_json::from_str(&text)?)
     }
 
     pub fn get_api_root(&self) -> &str {

@@ -15,7 +15,7 @@ use mlflow_rs::{
     logger::ExperimentLogger,
     run::{Run, RunTag, Status},
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[allow(dead_code)]
 fn create_experiment() -> Result<(), Box<dyn Error>> {
@@ -111,7 +111,7 @@ fn log_params() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug)]
 struct ParamStruct {
     a: String,
     b: u32,
@@ -119,7 +119,7 @@ struct ParamStruct {
     d: InnerStruct,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug)]
 struct InnerStruct {
     e: u32,
     f: String,
@@ -334,8 +334,66 @@ fn ctrl_c_handler_ignore_signal() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
+#[allow(dead_code)]
+fn get_run() -> Result<(), Box<dyn Error>> {
+    let api_root = "http://localhost:5000";
+    let run = Run::get_run(api_root, "f11fa50bbfa0412cbabece559d9a499b")?;
+
+    println!("{}", run.get_run_name());
+
+    Ok(())
+}
+
+#[allow(dead_code)]
+fn get_artifact_as_bytes() -> Result<(), Box<dyn Error>> {
+    let api_root = "http://localhost:5000";
+    let run = Run::get_run(api_root, "f11fa50bbfa0412cbabece559d9a499b")?;
+
+    let log = String::from_utf8(run.get_artifact_as_bytes("log.log")?)?;
+
+    println!("{}", log);
+
+    Ok(())
+}
+
+#[allow(dead_code)]
+fn get_artifact_as_string() -> Result<(), Box<dyn Error>> {
+    let api_root = "http://localhost:5000";
+    let run = Run::get_run(api_root, "f11fa50bbfa0412cbabece559d9a499b")?;
+
+    let log = run.get_artifact_as_string("log.log")?;
+
+    println!("{}", log);
+
+    Ok(())
+}
+
+#[allow(dead_code)]
+fn get_artifact_json_as_struct() -> Result<(), Box<dyn Error>> {
+    let api_root = "http://localhost:5000";
+    let run = Run::get_run(api_root, "7c758834d40e4226926084560f21aadc")?;
+
+    let data: ParamStruct = run.get_artifact_json_as_struct("test.json")?;
+
+    println!("{:?}", data);
+
+    Ok(())
+}
+
+#[allow(dead_code)]
+fn get_artifact_binary_as_struct() -> Result<(), Box<dyn Error>> {
+    let api_root = "http://localhost:5000";
+    let run = Run::get_run(api_root, "7c758834d40e4226926084560f21aadc")?;
+
+    let data: ParamStruct = run.get_artifact_binary_as_struct("test.bin")?;
+
+    println!("{:?}", data);
+
+    Ok(())
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
-    log_struct_as_binary()?;
+    get_artifact_binary_as_struct()?;
 
     Ok(())
 }
