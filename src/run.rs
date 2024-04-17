@@ -1,8 +1,12 @@
 use std::{
-    panic, path::Path, process::exit, sync::{
+    panic,
+    path::Path,
+    process::exit,
+    sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
-    }, time::SystemTime
+    },
+    time::SystemTime,
 };
 
 use log::Log;
@@ -13,10 +17,10 @@ use thiserror::Error;
 use crate::{
     logger::ExperimentLogger,
     schemas::{
-        LogMetricRequest, LogMetricResponse, LogParameterRequest, LogParameterResponse,
-        UpdateRunRequest, UpdateRunResponse, GetRunRequest, GetRunResponse
+        GetRunRequest, GetRunResponse, LogMetricRequest, LogMetricResponse, LogParameterRequest,
+        LogParameterResponse, UpdateRunRequest, UpdateRunResponse,
     },
-    utils::{checked_post_request, checked_get_request},
+    utils::{checked_get_request, checked_post_request},
 };
 
 #[derive(Deserialize, Default)]
@@ -407,14 +411,8 @@ impl Run {
     pub fn get_artifact_as_bytes(&self, path: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         let client = reqwest::blocking::Client::new();
         let response = client
-            .get(format!(
-                "{}/get-artifact",
-                self.api_root
-            ))
-            .query(&[
-                ("path", path),
-                ("run_uuid", self.info.run_id.as_str()),
-            ])
+            .get(format!("{}/get-artifact", self.api_root))
+            .query(&[("path", path), ("run_uuid", self.info.run_id.as_str())])
             .send()?
             .error_for_status()?;
 
@@ -425,15 +423,25 @@ impl Run {
         Ok(String::from_utf8(self.get_artifact_as_bytes(path)?)?)
     }
 
-    pub fn get_artifact_binary_as_struct<T>(&self, path: &str) -> Result<T, Box<dyn std::error::Error>>
-    where T: for<'de> Deserialize<'de> {
+    pub fn get_artifact_binary_as_struct<T>(
+        &self,
+        path: &str,
+    ) -> Result<T, Box<dyn std::error::Error>>
+    where
+        T: for<'de> Deserialize<'de>,
+    {
         let bytes = self.get_artifact_as_bytes(path)?;
 
         Ok(bincode::deserialize(&bytes)?)
     }
 
-    pub fn get_artifact_json_as_struct<T>(&self, path: &str) -> Result<T, Box<dyn std::error::Error>>
-    where T: for<'de> Deserialize<'de> {
+    pub fn get_artifact_json_as_struct<T>(
+        &self,
+        path: &str,
+    ) -> Result<T, Box<dyn std::error::Error>>
+    where
+        T: for<'de> Deserialize<'de>,
+    {
         let text = self.get_artifact_as_string(path)?;
 
         Ok(serde_json::from_str(&text)?)

@@ -51,19 +51,19 @@ pub(crate) struct GetRunRequest {
 
 #[derive(Deserialize)]
 pub(crate) struct GetRunResponse {
-    pub(crate) run: Run
+    pub(crate) run: Run,
 }
 
 #[derive(Serialize)]
 pub(crate) struct UpdateRunRequest {
     pub(crate) run_id: String,
     pub(crate) status: Status,
-    pub(crate) end_time: u128
+    pub(crate) end_time: u128,
 }
 
 #[derive(Deserialize)]
 pub(crate) struct UpdateRunResponse {
-    pub(crate) run_info: RunInfo
+    pub(crate) run_info: RunInfo,
 }
 
 #[derive(Serialize)]
@@ -72,12 +72,11 @@ pub(crate) struct LogMetricRequest {
     pub(crate) key: String,
     pub(crate) value: f32,
     pub(crate) timestamp: u128,
-    pub(crate) step: Option<u64>
+    pub(crate) step: Option<u64>,
 }
 
 #[derive(Deserialize)]
 pub(crate) struct LogMetricResponse {}
-
 
 #[derive(Serialize)]
 pub(crate) struct LogParameterRequest {
