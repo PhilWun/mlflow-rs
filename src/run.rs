@@ -331,7 +331,6 @@ impl Run {
         Ok(())
     }
 
-    #[cfg(not(disable_experiment_tracking))]
     pub fn run_experiment(
         &mut self,
         experiment_function: fn(&Run, Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>>,
@@ -377,15 +376,6 @@ impl Run {
         Ok(())
     }
 
-    #[cfg(disable_experiment_tracking)]
-    pub fn run_experiment(
-        &mut self,
-        _: fn(&Run, Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        Ok(())
-    }
-
-    #[cfg(not(disable_experiment_tracking))]
     pub fn run_experiment_with_logger<L: Log + 'static>(
         &mut self,
         experiment_function: fn(&Run, Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>>,
@@ -396,15 +386,6 @@ impl Run {
         self.run_experiment(experiment_function)?;
         self.log_logger(experiment_logger)?;
 
-        Ok(())
-    }
-
-    #[cfg(disable_experiment_tracking)]
-    pub fn run_experiment_with_logger<L: Log + 'static>(
-        &mut self,
-        _: fn(&Run, Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>>,
-        _: L,
-    ) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     }
 
