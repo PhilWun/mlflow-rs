@@ -67,6 +67,10 @@ pub enum Status {
 #[error("value is not a map")]
 struct NotAMapError;
 
+#[derive(Error, Debug)]
+#[error("Cannot download artifacts when experiment tracking is disabled.")]
+struct ArtifactDownloadError;
+
 impl Run {
     #[cfg(not(disable_experiment_tracking))]
     pub fn get_run(api_root: &str, run_id: &str) -> Result<Self, Box<dyn std::error::Error>> {
@@ -84,7 +88,7 @@ impl Run {
     }
 
     #[cfg(disable_experiment_tracking)]
-    pub fn get_run() -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn get_run(api_root: &str, run_id: &str) -> Result<Self, Box<dyn std::error::Error>> {
         Ok(Run::default())
     }
 
@@ -389,6 +393,7 @@ impl Run {
         Ok(())
     }
 
+    #[cfg(not(disable_experiment_tracking))]
     pub fn get_artifact_as_bytes(&self, path: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         let client = reqwest::blocking::Client::new();
         let response = client
@@ -400,10 +405,22 @@ impl Run {
         Ok(response.bytes()?.into())
     }
 
+    #[cfg(disable_experiment_tracking)]
+    pub fn get_artifact_as_bytes(&self, _: &str) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        Err(ArtifactDownloadError)?
+    }
+
+    #[cfg(not(disable_experiment_tracking))]
     pub fn get_artifact_as_string(&self, path: &str) -> Result<String, Box<dyn std::error::Error>> {
         Ok(String::from_utf8(self.get_artifact_as_bytes(path)?)?)
     }
 
+    #[cfg(disable_experiment_tracking)]
+    pub fn get_artifact_as_string(&self, _: &str) -> Result<String, Box<dyn std::error::Error>> {
+        Err(ArtifactDownloadError)?
+    }
+
+    #[cfg(not(disable_experiment_tracking))]
     pub fn get_artifact_binary_as_struct<T>(
         &self,
         path: &str,
@@ -416,6 +433,18 @@ impl Run {
         Ok(bincode::deserialize(&bytes)?)
     }
 
+    #[cfg(disable_experiment_tracking)]
+    pub fn get_artifact_binary_as_struct<T>(
+        &self,
+        path: &str,
+    ) -> Result<T, Box<dyn std::error::Error>>
+    where
+        T: for<'de> Deserialize<'de>,
+    {
+        Err(ArtifactDownloadError)?
+    }
+
+    #[cfg(not(disable_experiment_tracking))]
     pub fn get_artifact_json_as_struct<T>(
         &self,
         path: &str,
@@ -426,6 +455,17 @@ impl Run {
         let text = self.get_artifact_as_string(path)?;
 
         Ok(serde_json::from_str(&text)?)
+    }
+
+    #[cfg(disable_experiment_tracking)]
+    pub fn get_artifact_json_as_struct<T>(
+        &self,
+        path: &str,
+    ) -> Result<T, Box<dyn std::error::Error>>
+    where
+        T: for<'de> Deserialize<'de>,
+    {
+        Err(ArtifactDownloadError)?
     }
 
     pub fn get_api_root(&self) -> &str {
