@@ -5,6 +5,4 @@ mod git_utils;
 pub mod logger;
 pub mod run;
 mod schemas;
-mod utils;
-
-// TODO: add log function to log serde serializable structs as parameters
+pub mod utils;

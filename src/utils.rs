@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, thread, time::Duration};
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -59,4 +59,24 @@ pub(crate) fn checked_post_request<I: Serialize + ?Sized, O: DeserializeOwned>(
     check_for_error_response(&response)?;
 
     Ok(serde_json::from_str(&response)?)
+}
+
+pub fn retry<T, E>(function: fn() -> Result<T, E>) -> Result<T, E> {
+    let mut last_error;
+
+    match function() {
+        Ok(v) => return Ok(v),
+        Err(e) => last_error = e,
+    }
+
+    for i in 1..10 {
+        thread::sleep(Duration::from_millis(i * 1000));
+
+        match function() {
+            Ok(v) => return Ok(v),
+            Err(e) => last_error = e,
+        }
+    }
+
+    Err(last_error)
 }
