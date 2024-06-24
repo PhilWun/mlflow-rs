@@ -61,7 +61,10 @@ pub(crate) fn checked_post_request<I: Serialize + ?Sized, O: DeserializeOwned>(
     Ok(serde_json::from_str(&response)?)
 }
 
-pub fn retry<T, E>(function: fn() -> Result<T, E>) -> Result<T, E> {
+pub fn retry<F, T, E>(function: F) -> Result<T, E>
+where
+    F: Fn() -> Result<T, E>
+{
     let mut last_error;
 
     match function() {
