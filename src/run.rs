@@ -1,5 +1,5 @@
 use std::{
-    panic,
+    panic::{self, RefUnwindSafe, UnwindSafe},
     path::Path,
     process::exit,
     sync::{
@@ -335,10 +335,15 @@ impl Run {
         Ok(())
     }
 
-    pub fn run_experiment(
+    pub fn run_experiment<F, A>(
         &mut self,
-        experiment_function: fn(&Run, Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+        experiment_function: F,
+        args: A
+    ) -> Result<(), Box<dyn std::error::Error>>
+    where
+        F: Fn(&Run, Arc<AtomicBool>, A) -> Result<(), Box<dyn std::error::Error>> + RefUnwindSafe,
+        A: UnwindSafe
+    {
         let was_killed = Arc::new(AtomicBool::new(false));
         let was_killed_clone = was_killed.clone();
 
@@ -355,7 +360,7 @@ impl Run {
         })?;
 
         // catch panics (might not catch all panics, see Rust docs)
-        let result = panic::catch_unwind(|| experiment_function(&self, was_killed.clone()));
+        let result = panic::catch_unwind(|| experiment_function(&self, was_killed.clone(), args));
 
         let successful = match result {
             Ok(inner_result) => match inner_result {
@@ -380,14 +385,19 @@ impl Run {
         Ok(())
     }
 
-    pub fn run_experiment_with_logger<L: Log + 'static>(
+    pub fn run_experiment_with_logger<L: Log + 'static, F, A>(
         &mut self,
-        experiment_function: fn(&Run, Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>>,
+        experiment_function: F,
+        args: A,
         logger: L,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<(), Box<dyn std::error::Error>>
+    where
+        F: Fn(&Run, Arc<AtomicBool>, A) -> Result<(), Box<dyn std::error::Error>> + RefUnwindSafe,
+        A: UnwindSafe
+    {
         let experiment_logger = ExperimentLogger::init(logger)?;
 
-        self.run_experiment(experiment_function)?;
+        self.run_experiment(experiment_function, args)?;
         self.log_logger(experiment_logger)?;
 
         Ok(())

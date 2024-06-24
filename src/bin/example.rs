@@ -258,7 +258,7 @@ fn log_logger() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn experiment_function(run: &Run, _: Arc<AtomicBool>) -> Result<(), Box<dyn Error>> {
+fn experiment_function(run: &Run, _: Arc<AtomicBool>, _: ()) -> Result<(), Box<dyn Error>> {
     info!("info message");
     error!("error message");
 
@@ -278,7 +278,7 @@ fn run_experiment() -> Result<(), Box<dyn Error>> {
 
     let mut run = experiment.create_run_with_git_diff(Some("new run"), vec![])?;
 
-    run.run_experiment(experiment_function)?;
+    run.run_experiment(experiment_function, ())?;
 
     Ok(())
 }
@@ -293,7 +293,7 @@ fn run_experiment_with_logger() -> Result<(), Box<dyn Error>> {
 
     let mut run = experiment.create_run_with_git_diff(Some("new run"), vec![])?;
 
-    run.run_experiment_with_logger(experiment_function, logger)?;
+    run.run_experiment_with_logger(experiment_function, (), logger)?;
 
     Ok(())
 }
@@ -305,13 +305,13 @@ fn ctrl_c_handler() -> Result<(), Box<dyn Error>> {
 
     let mut run = experiment.create_run_with_git_diff(Some("new run"), vec![])?;
 
-    run.run_experiment(|_, was_killed| {
+    run.run_experiment(|_, was_killed, _| {
         println!("running");
 
         while !was_killed.load(Ordering::Relaxed) {}
 
         Ok(())
-    })?;
+    }, ())?;
 
     Ok(())
 }
@@ -323,13 +323,13 @@ fn ctrl_c_handler_ignore_signal() -> Result<(), Box<dyn Error>> {
 
     let mut run = experiment.create_run_with_git_diff(Some("new run"), vec![])?;
 
-    run.run_experiment(|_, _| {
+    run.run_experiment(|_, _, _| {
         println!("running");
 
         sleep(Duration::from_secs(10));
 
         Ok(())
-    })?;
+    }, ())?;
 
     Ok(())
 }
