@@ -18,7 +18,7 @@ use crate::{
     logger::ExperimentLogger,
     schemas::{
         GetRunRequest, GetRunResponse, LogMetricRequest, LogMetricResponse, LogParameterRequest,
-        LogParameterResponse, UpdateRunRequest, UpdateRunResponse,
+        LogParameterResponse, UpdateRunRequest, UpdateRunResponse, ListArtifactsRequest, ListArtifactsResponse
     },
     utils::{checked_get_request, checked_post_request},
 };
@@ -60,6 +60,12 @@ pub struct RunTag {
 pub struct RunParameters {
     pub key: String,
     pub value: String,
+}
+
+#[derive(Deserialize)]
+pub struct ArtifactInfo {
+    pub path: String,
+    pub is_dir: bool
 }
 
 #[derive(Serialize, Deserialize)]
@@ -196,6 +202,24 @@ impl Run {
     }
 
     #[cfg(not(disable_experiment_tracking))]
+    pub fn list_artifacts(&self, prefix: &str) -> Result<Vec<ArtifactInfo>, Box<dyn std::error::Error>> {
+        let response = checked_get_request::<ListArtifactsRequest, ListArtifactsResponse>(
+            &format!("{}/api/2.0/mlflow/artifacts/list", self.api_root),
+            &ListArtifactsRequest {
+                run_id: self.info.run_id.clone(),
+                path: prefix.to_string()
+            },
+        )?;
+
+        Ok(response.files)
+    }
+
+    #[cfg(disable_experiment_tracking)]
+    pub fn list_artifacts(&self, prefix: &str) -> Result<Vec<ArtifactInfo>, Box<dyn std::error::Error>> {
+        Ok(Vec::new())
+    }
+
+    #[cfg(not(disable_experiment_tracking))]
     fn log_serde_value_as_parameters(
         &self,
         prefix: &str,
@@ -217,6 +241,15 @@ impl Run {
             }
         }
 
+        Ok(())
+    }
+
+    #[cfg(disable_experiment_tracking)]
+    fn log_serde_value_as_parameters(
+        &self,
+        prefix: &str,
+        value: Value,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     }
 

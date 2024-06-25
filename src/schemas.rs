@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     experiment::Experiment,
-    run::{Run, RunInfo, RunTag, Status},
+    run::{ArtifactInfo, Run, RunInfo, RunTag, Status},
 };
 
 #[derive(Serialize)]
@@ -87,3 +87,14 @@ pub(crate) struct LogParameterRequest {
 
 #[derive(Deserialize)]
 pub(crate) struct LogParameterResponse {}
+
+#[derive(Serialize)]
+pub(crate) struct ListArtifactsRequest {
+    pub(crate) run_id: String,
+    pub(crate) path: String,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct ListArtifactsResponse {
+    pub(crate) files: Vec<ArtifactInfo>,
+}
