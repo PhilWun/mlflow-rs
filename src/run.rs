@@ -47,10 +47,17 @@ pub(crate) struct RunInfo {
 #[derive(Deserialize, Default)]
 struct RunData {
     tags: Vec<RunTag>,
+    parameters: Vec<RunParameters>
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct RunTag {
+    pub key: String,
+    pub value: String,
+}
+
+#[derive(Deserialize)]
+pub struct RunParameters {
     pub key: String,
     pub value: String,
 }
@@ -69,6 +76,7 @@ struct NotAMapError;
 
 #[derive(Error, Debug)]
 #[error("Cannot download artifacts when experiment tracking is disabled.")]
+#[cfg(disable_experiment_tracking)]
 struct ArtifactDownloadError;
 
 impl Run {
@@ -169,7 +177,7 @@ impl Run {
     }
 
     #[cfg(not(disable_experiment_tracking))]
-    pub fn log_parameter_struct<T: Serialize>(
+    pub fn log_parameter_struct_as_json<T: Serialize>(
         &self,
         parameters: T,
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -180,7 +188,7 @@ impl Run {
     }
 
     #[cfg(disable_experiment_tracking)]
-    pub fn log_parameter_struct<T: Serialize>(
+    pub fn log_parameter_struct_as_json<T: Serialize>(
         &self,
         _: T,
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -520,5 +528,9 @@ impl Run {
 
     pub fn get_tags(&self) -> &Vec<RunTag> {
         &self.data.tags
+    }
+
+    pub fn get_parameters(&self) -> &Vec<RunParameters> {
+        &self.data.parameters
     }
 }

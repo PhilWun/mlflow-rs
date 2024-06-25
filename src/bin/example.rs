@@ -132,7 +132,7 @@ fn log_struct_params() -> Result<(), Box<dyn Error>> {
 
     let run = experiment.create_run_with_git_diff(Some("new run"), vec![])?;
 
-    run.log_parameter_struct(ParamStruct {
+    run.log_parameter_struct_as_json(ParamStruct {
         a: "test".to_owned(),
         b: 42,
         c: vec![1, 2, 3, 4, 5],
@@ -337,7 +337,7 @@ fn ctrl_c_handler_ignore_signal() -> Result<(), Box<dyn Error>> {
 #[allow(dead_code)]
 fn get_run() -> Result<(), Box<dyn Error>> {
     let api_root = "http://localhost:5000";
-    let run = Run::get_run(api_root, "f11fa50bbfa0412cbabece559d9a499b")?;
+    let run = Run::get_run(api_root, "e089ac98e5bf46bd9c952b50a6c27889")?;
 
     println!("{}", run.get_run_name());
 
@@ -393,7 +393,7 @@ fn get_artifact_binary_as_struct() -> Result<(), Box<dyn Error>> {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    get_artifact_binary_as_struct()?;
+    get_run()?;
 
     Ok(())
 }
