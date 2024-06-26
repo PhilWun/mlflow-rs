@@ -47,6 +47,7 @@ pub(crate) struct RunInfo {
 #[derive(Deserialize, Default)]
 struct RunData {
     tags: Vec<RunTag>,
+    #[serde(default)]
     params: Vec<RunParameters>
 }
 
