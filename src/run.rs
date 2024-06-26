@@ -47,7 +47,7 @@ pub(crate) struct RunInfo {
 #[derive(Deserialize, Default)]
 struct RunData {
     tags: Vec<RunTag>,
-    parameters: Vec<RunParameters>
+    params: Vec<RunParameters>
 }
 
 #[derive(Serialize, Deserialize)]
@@ -564,6 +564,6 @@ impl Run {
     }
 
     pub fn get_parameters(&self) -> &Vec<RunParameters> {
-        &self.data.parameters
+        &self.data.params
     }
 }
